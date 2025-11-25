@@ -46,10 +46,19 @@ const Checkout: React.FC<CheckoutProps> = ({ onPlanSelect }) => {
                         )}
                         <div className="text-center">
                             <h3 className="text-xl font-bold text-text-primary dark:text-white truncate">{plan.name}</h3>
-                            <div className="my-3 flex justify-center items-baseline flex-wrap">
-                                <span className="text-3xl font-bold text-text-primary dark:text-white">{new Intl.NumberFormat('vi-VN').format(plan.price)}</span>
-                                <span className="text-sm font-medium text-text-secondary dark:text-gray-400 ml-1">{plan.currency}</span>
+                            
+                            <div className="my-3 flex flex-col justify-center items-center">
+                                {plan.originalPrice && (
+                                    <span className="text-red-500 line-through text-lg font-semibold decoration-2 decoration-red-500/70">
+                                        {new Intl.NumberFormat('vi-VN').format(plan.originalPrice)}
+                                    </span>
+                                )}
+                                <div className="flex items-baseline">
+                                    <span className="text-3xl font-bold text-text-primary dark:text-white">{new Intl.NumberFormat('vi-VN').format(plan.price)}</span>
+                                    <span className="text-sm font-medium text-text-secondary dark:text-gray-400 ml-1">{plan.currency}</span>
+                                </div>
                             </div>
+                            
                             <p className="text-text-secondary dark:text-gray-400 text-xs min-h-[2rem] px-2">{plan.description}</p>
                         </div>
                         

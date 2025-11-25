@@ -47,7 +47,11 @@ const App: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark'); 
   const [userStatus, setUserStatus] = useState<UserStatus | null>(null);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  
+  // State to handle checkout flow
   const [selectedPlan, setSelectedPlan] = useState<PricingPlan | null>(null);
+  // State to remember plan if user selects it while logged out
+  const [pendingPlan, setPendingPlan] = useState<PricingPlan | null>(null);
 
   // Check for pending tab focus to auto-login after email verification
   useEffect(() => {
@@ -55,7 +59,6 @@ const App: React.FC = () => {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
         if (currentSession) {
             setSession(currentSession);
-            if (view !== 'app' && view !== 'payment') setView('app');
         }
     };
 
@@ -66,7 +69,7 @@ const App: React.FC = () => {
         window.removeEventListener('focus', handleFocus);
         window.removeEventListener('visibilitychange', handleFocus);
     };
-  }, [view]);
+  }, []);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -74,12 +77,13 @@ const App: React.FC = () => {
     root.classList.add(theme);
   }, [theme]);
 
-  // Routing: Handle browser back/forward buttons
+  // Routing: Handle browser back/forward buttons and URL Params
   useEffect(() => {
       const handlePopState = () => {
           const path = window.location.pathname;
+          const params = new URLSearchParams(window.location.search);
+          
           if (path === '/payment') {
-               const params = new URLSearchParams(window.location.search);
                const planId = params.get('plan');
                const plan = plans.find(p => p.id === planId);
                if (plan && session) {
@@ -88,7 +92,12 @@ const App: React.FC = () => {
                } else if (session) {
                    setView('app');
                } else {
-                   setView('homepage');
+                   // If not logged in but trying to access payment, verify plan exists
+                   if (plan) {
+                       setPendingPlan(plan);
+                       localStorage.setItem('pendingPlanId', plan.id);
+                   }
+                   setView('homepage'); 
                }
           } else if (path === '/') {
               setView(session ? 'app' : 'homepage');
@@ -103,27 +112,46 @@ const App: React.FC = () => {
   useEffect(() => {
     const initSession = async () => {
         setLoadingSession(true);
-        // supabase.auth.getSession() automatically parses the URL hash for session data
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
+        // Check URL for plan param (e.g. returning from OAuth redirect)
+        const params = new URLSearchParams(window.location.search);
+        const planIdParam = params.get('plan');
+        const urlPlan = planIdParam ? plans.find(p => p.id === planIdParam) : null;
+
         if (initialSession) {
             setSession(initialSession);
             
-            // Check URL for routing logic on initial load
-            const path = window.location.pathname;
-            if (path === '/payment') {
-                const params = new URLSearchParams(window.location.search);
-                const planId = params.get('plan');
-                const plan = plans.find(p => p.id === planId);
+            // PRIORITY 1: URL Param Plan (OAuth redirect)
+            if (urlPlan) {
+                setSelectedPlan(urlPlan);
+                setView('payment');
+                window.history.replaceState({}, '', '/'); // Clean URL
+            } 
+            // PRIORITY 2: Pending Plan from LocalStorage (OAuth/Refresh persistence)
+            else {
+                const savedPlanId = localStorage.getItem('pendingPlanId');
+                const plan = savedPlanId ? plans.find(p => p.id === savedPlanId) : pendingPlan;
+
                 if (plan) {
                     setSelectedPlan(plan);
+                    setPendingPlan(null);
+                    localStorage.removeItem('pendingPlanId'); // Clear it
                     setView('payment');
-                } else {
-                    setView('app'); // Fallback if invalid plan
+                } 
+                else {
+                    // Check for pending destination (e.g. user clicked Pricing on homepage)
+                    const pendingDest = localStorage.getItem('pendingDestination');
+                    if (pendingDest === 'pricing') {
+                        localStorage.removeItem('pendingDestination');
+                        setView('app');
+                        setActiveTool(Tool.Pricing);
+                    }
+                    // PRIORITY 3: Default App View
+                    else if (view !== 'app' && view !== 'payment') {
+                        setView('app');
+                    }
                 }
-            } else {
-                // Force view to 'app' if session exists and not on specific route
-                if (view !== 'app') setView('app');
             }
         }
         setLoadingSession(false);
@@ -133,37 +161,45 @@ const App: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      
       if (session) {
-          // If we just got a session and we were loading or on auth, go to app
-          if (view === 'auth' || view === 'homepage') {
-              // Re-check path in case of auth redirect back to /payment
-              const path = window.location.pathname;
-              if (path === '/payment') {
-                  const params = new URLSearchParams(window.location.search);
-                  const planId = params.get('plan');
-                  const plan = plans.find(p => p.id === planId);
-                  if (plan) {
-                      setSelectedPlan(plan);
-                      setView('payment');
-                      return;
-                  }
+          // Check if we have a pending plan waiting (from State or LocalStorage)
+          const savedPlanId = localStorage.getItem('pendingPlanId');
+          const plan = savedPlanId ? plans.find(p => p.id === savedPlanId) : pendingPlan;
+
+          if (plan) {
+              setSelectedPlan(plan);
+              setPendingPlan(null);
+              localStorage.removeItem('pendingPlanId');
+              setView('payment');
+          } 
+          else {
+              // Check for pending destination
+              const pendingDest = localStorage.getItem('pendingDestination');
+              if (pendingDest === 'pricing') {
+                  localStorage.removeItem('pendingDestination');
+                  setView('app');
+                  setActiveTool(Tool.Pricing);
+              } else if (view === 'auth' || view === 'homepage' || view === 'pricing') {
+                  setView('app');
               }
-              setView('app');
+          }
+      } else {
+          // Logged out
+          if (view === 'app' || view === 'payment') {
+              setView('homepage');
           }
       }
       setLoadingSession(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []); 
+  }, [pendingPlan, view]);
 
   // Define fetchUserStatus using useCallback to be stable
   const fetchUserStatus = useCallback(async () => {
     if (session?.user) {
-      // Check for stale jobs and refund if necessary before getting status
       await jobService.cleanupStaleJobs(session.user.id);
-      
-      // Pass email to ensure it's saved in DB
       const status = await getUserStatus(session.user.id, session.user.email);
       setUserStatus(status);
     } else {
@@ -171,7 +207,6 @@ const App: React.FC = () => {
     }
   }, [session]);
 
-  // Fetch credits when session changes or active tool changes
   useEffect(() => {
     fetchUserStatus();
   }, [fetchUserStatus, activeTool]); 
@@ -179,7 +214,7 @@ const App: React.FC = () => {
   const handleDeductCredits = async (amount: number, description?: string): Promise<string> => {
       if (!session?.user) throw new Error("Vui lòng đăng nhập để sử dụng.");
       const logId = await deductCredits(session.user.id, amount, description);
-      await fetchUserStatus(); // Refresh UI
+      await fetchUserStatus();
       return logId;
   };
 
@@ -201,7 +236,6 @@ const App: React.FC = () => {
     }
   };
 
-  // New handler to navigate to specific tool from Homepage
   const handleNavigateToTool = (tool: Tool) => {
       setActiveTool(tool);
       if (session) {
@@ -216,6 +250,8 @@ const App: React.FC = () => {
     await supabase.auth.signOut();
     setView('homepage');
     setSession(null);
+    setSelectedPlan(null);
+    localStorage.removeItem('pendingPlanId');
     window.history.pushState({}, '', '/');
   };
   
@@ -248,12 +284,13 @@ const App: React.FC = () => {
   const handleUpgrade = () => {
       if (session) {
           setView('app');
-          // Points to the dedicated Checkout page
           setActiveTool(Tool.Pricing);
           window.history.pushState({}, '', '/');
       } else {
-          // If not logged in, go to public pricing page
-          setView('pricing');
+          // Force login and redirect to pricing afterwards
+          setAuthMode('login');
+          setView('auth');
+          localStorage.setItem('pendingDestination', 'pricing');
       }
   }
   
@@ -266,32 +303,45 @@ const App: React.FC = () => {
       }
   }
 
+  // Logic xử lý khi chọn gói từ trang Bảng giá hoặc Checkout
   const handleSelectPlanForPayment = (plan: PricingPlan) => {
-      setSelectedPlan(plan);
-      setView('payment');
-      // Push state to history so URL updates to /payment?plan=...
-      window.history.pushState({}, '', `/payment?plan=${plan.id}`);
+      if (session) {
+          // Đã đăng nhập -> Vào thẳng trang thanh toán
+          setSelectedPlan(plan);
+          setView('payment');
+          window.history.pushState({}, '', `/payment?plan=${plan.id}`);
+      } else {
+          // Chưa đăng nhập -> Lưu gói lại -> Chuyển sang đăng nhập
+          setPendingPlan(plan);
+          localStorage.setItem('pendingPlanId', plan.id); // Backup to localStorage for OAuth redirects
+          setAuthMode('signup'); // Mặc định chuyển sang đăng ký
+          setView('auth');
+      }
   };
 
   const handlePaymentBack = () => {
-      setView('app');
-      setActiveTool(Tool.Pricing); // Go back to pricing list
+      if (session) {
+        setView('app');
+        setActiveTool(Tool.Pricing); 
+      } else {
+        setView('pricing');
+      }
       window.history.pushState({}, '', '/');
   }
 
   const handlePaymentSuccess = () => {
       fetchUserStatus();
       setView('app');
-      setActiveTool(Tool.ArchitecturalRendering); // Or back to Profile
+      setActiveTool(Tool.ArchitecturalRendering);
       window.history.pushState({}, '', '/');
   };
 
   const handleSendToViewSync = (image: FileData) => {
      handleToolStateChange(Tool.ViewSync, {
         sourceImage: image,
-        resultImages: [], // Clear previous results
+        resultImages: [],
         error: null,
-        customPrompt: '', // Clear any old prompt
+        customPrompt: '',
      });
     setActiveTool(Tool.ViewSync);
   };
@@ -299,7 +349,7 @@ const App: React.FC = () => {
   const handleSendToViewSyncWithPrompt = (image: FileData, prompt: string) => {
      handleToolStateChange(Tool.ViewSync, {
         sourceImage: image,
-        customPrompt: prompt, // Set the prompt from suggester
+        customPrompt: prompt,
         resultImages: [],
         error: null,
         selectedPerspective: 'default',
@@ -312,170 +362,7 @@ const App: React.FC = () => {
   
   const userCredits = userStatus?.credits || 0;
 
-  const renderTool = () => {
-    switch (activeTool) {
-      case Tool.FloorPlan:
-        return <FloorPlan 
-            state={toolStates.FloorPlan}
-            onStateChange={(newState) => handleToolStateChange(Tool.FloorPlan, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.Renovation:
-        return <Renovation 
-            state={toolStates.Renovation}
-            onStateChange={(newState) => handleToolStateChange(Tool.Renovation, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.ArchitecturalRendering:
-        return <ImageGenerator 
-            state={toolStates.ArchitecturalRendering}
-            onStateChange={(newState) => handleToolStateChange(Tool.ArchitecturalRendering, newState)}
-            onSendToViewSync={handleSendToViewSync} 
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.InteriorRendering:
-        return <InteriorGenerator
-            state={toolStates.InteriorRendering}
-            onStateChange={(newState) => handleToolStateChange(Tool.InteriorRendering, newState)}
-            onSendToViewSync={handleSendToViewSync} 
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.UrbanPlanning:
-        return <UrbanPlanning
-            state={toolStates.UrbanPlanning}
-            onStateChange={(newState) => handleToolStateChange(Tool.UrbanPlanning, newState)}
-            onSendToViewSync={handleSendToViewSync}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.LandscapeRendering:
-        return <LandscapeRendering
-            state={toolStates.LandscapeRendering}
-            onStateChange={(newState) => handleToolStateChange(Tool.LandscapeRendering, newState)}
-            onSendToViewSync={handleSendToViewSync}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.AITechnicalDrawings:
-        return <AITechnicalDrawings
-            state={toolStates.AITechnicalDrawings}
-            onStateChange={(newState) => handleToolStateChange(Tool.AITechnicalDrawings, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.SketchConverter:
-        return <SketchConverter
-            state={toolStates.SketchConverter}
-            onStateChange={(newState) => handleToolStateChange(Tool.SketchConverter, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.FengShui:
-        return <FengShui
-            state={toolStates.FengShui}
-            onStateChange={(newState) => handleToolStateChange(Tool.FengShui, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.ViewSync:
-        return <ViewSync 
-            state={toolStates.ViewSync}
-            onStateChange={(newState) => handleToolStateChange(Tool.ViewSync, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.VirtualTour:
-        return <VirtualTour
-            state={toolStates.VirtualTour}
-            onStateChange={(newState) => handleToolStateChange(Tool.VirtualTour, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.PromptSuggester:
-        return <PromptSuggester
-            state={toolStates.PromptSuggester}
-            onStateChange={(newState) => handleToolStateChange(Tool.PromptSuggester, newState)}
-            onSendToViewSyncWithPrompt={handleSendToViewSyncWithPrompt}
-        />;
-       case Tool.PromptEnhancer:
-        return <PromptEnhancer
-            state={toolStates.PromptEnhancer}
-            onStateChange={(newState) => handleToolStateChange(Tool.PromptEnhancer, newState)}
-        />;
-      case Tool.MaterialSwap:
-        return <MaterialSwapper 
-            state={toolStates.MaterialSwap}
-            onStateChange={(newState) => handleToolStateChange(Tool.MaterialSwap, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.Staging:
-        return <Staging 
-            state={toolStates.Staging}
-            onStateChange={(newState) => handleToolStateChange(Tool.Staging, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.Upscale:
-        return <Upscale 
-            state={toolStates.Upscale}
-            onStateChange={(newState) => handleToolStateChange(Tool.Upscale, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.Moodboard:
-        return <MoodboardGenerator 
-            state={toolStates.Moodboard}
-            onStateChange={(newState) => handleToolStateChange(Tool.Moodboard, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.VideoGeneration:
-        return <VideoGenerator 
-            state={toolStates.VideoGeneration}
-            onStateChange={(newState) => handleToolStateChange(Tool.VideoGeneration, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.ImageEditing:
-        return <ImageEditor 
-            state={toolStates.ImageEditing}
-            onStateChange={(newState) => handleToolStateChange(Tool.ImageEditing, newState)}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-      case Tool.History:
-        return <HistoryPanel />;
-      
-      case Tool.Pricing:
-        // Render standalone Checkout page with callback
-        return <Checkout onPlanSelect={handleSelectPlanForPayment} />;
-        
-      case Tool.Profile:
-        // Render User Profile
-        return session ? (
-            <UserProfile 
-                session={session} 
-                initialTab={toolStates.Profile.activeTab || 'profile'}
-                onTabChange={(tab) => handleToolStateChange(Tool.Profile, { activeTab: tab })}
-                onPurchaseSuccess={fetchUserStatus}
-            /> 
-        ) : null;
-        
-      default:
-        return <ImageGenerator 
-            state={toolStates.ArchitecturalRendering}
-            onStateChange={(newState) => handleToolStateChange(Tool.ArchitecturalRendering, newState)}
-            onSendToViewSync={handleSendToViewSync}
-            userCredits={userCredits}
-            onDeductCredits={handleDeductCredits}
-        />;
-    }
-  };
+  // --- RENDER LOGIC ---
 
   if (loadingSession) {
     return (
@@ -485,8 +372,9 @@ const App: React.FC = () => {
     );
   }
   
+  // LOGGED IN VIEW
   if (session) {
-    // --- PAYMENT PAGE VIEW ---
+    // Payment Page (Protected)
     if (view === 'payment' && selectedPlan) {
         return (
             <div className="min-h-screen bg-main-bg dark:bg-[#121212] font-sans">
@@ -497,7 +385,7 @@ const App: React.FC = () => {
                     onSignOut={handleSignOut} 
                     userStatus={userStatus}
                     user={session.user}
-                    onToggleNav={() => {}} // Disable menu on payment page
+                    onToggleNav={() => {}}
                 />
                 <PaymentPage 
                     plan={selectedPlan}
@@ -520,10 +408,12 @@ const App: React.FC = () => {
                 onOpenProfile={handleOpenProfile}
                 userStatus={userStatus}
                 onNavigateToTool={handleNavigateToTool}
+                onNavigateToPricing={handleUpgrade} // Logged in user goes to internal pricing
             />
         );
     }
-    // Use h-[100dvh] for mobile browser address bar compatibility
+
+    // Main App Interface
     return (
         <div className="h-[100dvh] bg-main-bg dark:bg-[#121212] font-sans text-text-primary dark:text-[#EAEAEA] flex flex-col transition-colors duration-300 overflow-hidden">
             <Header 
@@ -539,38 +429,193 @@ const App: React.FC = () => {
                 onToggleNav={() => setIsMobileNavOpen(!isMobileNavOpen)}
             />
             <div className="relative flex flex-col md:flex-row flex-grow overflow-hidden">
-                {/* Navigation Sidebar - Responsive */}
                 <Navigation 
                     activeTool={activeTool} 
                     setActiveTool={(tool) => {
                         setActiveTool(tool);
-                        setIsMobileNavOpen(false); // Close on select mobile
+                        setIsMobileNavOpen(false);
                     }} 
                     isMobileOpen={isMobileNavOpen}
                     onCloseMobile={() => setIsMobileNavOpen(false)}
                 />
-                
-                {/* Main Content Area */}
                 <main 
                     className="flex-1 bg-surface/90 dark:bg-[#191919]/90 backdrop-blur-md md:m-6 md:ml-0 md:rounded-2xl shadow-lg border-t md:border border-border-color dark:border-[#302839] overflow-y-auto scrollbar-hide p-3 sm:p-6 lg:p-8 relative z-0 transition-colors duration-300"
                     style={{ WebkitOverflowScrolling: 'touch' }}
                 >
-                    {renderTool()}
+                    {activeTool === Tool.Pricing ? (
+                        <Checkout onPlanSelect={handleSelectPlanForPayment} />
+                    ) : activeTool === Tool.FloorPlan ? (
+                        <FloorPlan 
+                            state={toolStates.FloorPlan}
+                            onStateChange={(newState) => handleToolStateChange(Tool.FloorPlan, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.Renovation ? (
+                        <Renovation 
+                            state={toolStates.Renovation}
+                            onStateChange={(newState) => handleToolStateChange(Tool.Renovation, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.ArchitecturalRendering ? (
+                        <ImageGenerator 
+                            state={toolStates.ArchitecturalRendering}
+                            onStateChange={(newState) => handleToolStateChange(Tool.ArchitecturalRendering, newState)}
+                            onSendToViewSync={handleSendToViewSync} 
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.InteriorRendering ? (
+                        <InteriorGenerator
+                            state={toolStates.InteriorRendering}
+                            onStateChange={(newState) => handleToolStateChange(Tool.InteriorRendering, newState)}
+                            onSendToViewSync={handleSendToViewSync} 
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.UrbanPlanning ? (
+                        <UrbanPlanning
+                            state={toolStates.UrbanPlanning}
+                            onStateChange={(newState) => handleToolStateChange(Tool.UrbanPlanning, newState)}
+                            onSendToViewSync={handleSendToViewSync}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.LandscapeRendering ? (
+                        <LandscapeRendering
+                            state={toolStates.LandscapeRendering}
+                            onStateChange={(newState) => handleToolStateChange(Tool.LandscapeRendering, newState)}
+                            onSendToViewSync={handleSendToViewSync}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.AITechnicalDrawings ? (
+                        <AITechnicalDrawings
+                            state={toolStates.AITechnicalDrawings}
+                            onStateChange={(newState) => handleToolStateChange(Tool.AITechnicalDrawings, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.SketchConverter ? (
+                        <SketchConverter
+                            state={toolStates.SketchConverter}
+                            onStateChange={(newState) => handleToolStateChange(Tool.SketchConverter, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.FengShui ? (
+                        <FengShui
+                            state={toolStates.FengShui}
+                            onStateChange={(newState) => handleToolStateChange(Tool.FengShui, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.ViewSync ? (
+                        <ViewSync 
+                            state={toolStates.ViewSync}
+                            onStateChange={(newState) => handleToolStateChange(Tool.ViewSync, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.VirtualTour ? (
+                        <VirtualTour
+                            state={toolStates.VirtualTour}
+                            onStateChange={(newState) => handleToolStateChange(Tool.VirtualTour, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.PromptSuggester ? (
+                        <PromptSuggester
+                            state={toolStates.PromptSuggester}
+                            onStateChange={(newState) => handleToolStateChange(Tool.PromptSuggester, newState)}
+                            onSendToViewSyncWithPrompt={handleSendToViewSyncWithPrompt}
+                        />
+                    ) : activeTool === Tool.PromptEnhancer ? (
+                        <PromptEnhancer
+                            state={toolStates.PromptEnhancer}
+                            onStateChange={(newState) => handleToolStateChange(Tool.PromptEnhancer, newState)}
+                        />
+                    ) : activeTool === Tool.MaterialSwap ? (
+                        <MaterialSwapper 
+                            state={toolStates.MaterialSwap}
+                            onStateChange={(newState) => handleToolStateChange(Tool.MaterialSwap, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.Staging ? (
+                        <Staging 
+                            state={toolStates.Staging}
+                            onStateChange={(newState) => handleToolStateChange(Tool.Staging, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.Upscale ? (
+                        <Upscale 
+                            state={toolStates.Upscale}
+                            onStateChange={(newState) => handleToolStateChange(Tool.Upscale, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.Moodboard ? (
+                        <MoodboardGenerator 
+                            state={toolStates.Moodboard}
+                            onStateChange={(newState) => handleToolStateChange(Tool.Moodboard, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.VideoGeneration ? (
+                        <VideoGenerator 
+                            state={toolStates.VideoGeneration}
+                            onStateChange={(newState) => handleToolStateChange(Tool.VideoGeneration, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.ImageEditing ? (
+                        <ImageEditor 
+                            state={toolStates.ImageEditing}
+                            onStateChange={(newState) => handleToolStateChange(Tool.ImageEditing, newState)}
+                            userCredits={userCredits}
+                            onDeductCredits={handleDeductCredits}
+                        />
+                    ) : activeTool === Tool.History ? (
+                        <HistoryPanel />
+                    ) : activeTool === Tool.Profile ? (
+                        <UserProfile 
+                            session={session} 
+                            initialTab={toolStates.Profile.activeTab || 'profile'}
+                            onTabChange={(tab) => handleToolStateChange(Tool.Profile, { activeTab: tab })}
+                            onPurchaseSuccess={fetchUserStatus}
+                        /> 
+                    ) : null}
                 </main>
             </div>
         </div>
     );
   }
 
+  // PUBLIC VIEW
   if (view === 'auth') {
     return <AuthPage onGoHome={() => { setView('homepage'); window.history.pushState({}, '', '/'); }} initialMode={authMode} />;
   }
 
   if (view === 'pricing') {
-      return <PublicPricing onGoHome={() => { setView('homepage'); window.history.pushState({}, '', '/'); }} onAuthNavigate={handleAuthNavigate} />;
+      return (
+        <PublicPricing 
+            onGoHome={() => { setView('homepage'); window.history.pushState({}, '', '/'); }} 
+            onAuthNavigate={handleAuthNavigate} 
+            onPlanSelect={handleSelectPlanForPayment}
+        />
+      );
   }
   
-  return <Homepage onStart={handleStartDesigning} onAuthNavigate={handleAuthNavigate} onNavigateToPricing={() => setView('pricing')} />;
+  return (
+    <Homepage 
+        onStart={handleStartDesigning} 
+        onAuthNavigate={handleAuthNavigate} 
+        onNavigateToPricing={handleUpgrade} 
+    />
+  );
 };
 
 export default App;

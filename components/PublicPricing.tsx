@@ -14,9 +14,19 @@ const CheckIcon = () => (
 interface PublicPricingProps {
     onGoHome: () => void;
     onAuthNavigate: (mode: 'login' | 'signup') => void;
+    onPlanSelect?: (plan: PricingPlan) => void;
 }
 
-const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate }) => {
+const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate, onPlanSelect }) => {
+    
+    const handlePlanClick = (plan: PricingPlan) => {
+        if (onPlanSelect) {
+            onPlanSelect(plan);
+        } else {
+            onAuthNavigate('signup');
+        }
+    };
+
     return (
         <div className="bg-[#121212] font-display text-[#EAEAEA] min-h-screen flex flex-col">
             <style>{`
@@ -78,9 +88,16 @@ const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate 
                             </div>
 
                             <div className="text-center mb-6">
-                                <div className="flex justify-center items-baseline">
-                                    <span className="text-4xl font-bold text-white">{new Intl.NumberFormat('vi-VN').format(plan.price)}</span>
-                                    <span className="text-lg text-gray-400 ml-1">{plan.currency}</span>
+                                <div className="flex flex-col items-center justify-center">
+                                    {plan.originalPrice && (
+                                        <span className="text-red-500 line-through text-xl font-bold mb-1 decoration-2 decoration-red-500/70">
+                                            {new Intl.NumberFormat('vi-VN').format(plan.originalPrice)} {plan.currency}
+                                        </span>
+                                    )}
+                                    <div className="flex justify-center items-baseline">
+                                        <span className="text-4xl font-bold text-white">{new Intl.NumberFormat('vi-VN').format(plan.price)}</span>
+                                        <span className="text-lg text-gray-400 ml-1">{plan.currency}</span>
+                                    </div>
                                 </div>
                                 <div className="mt-4 inline-block bg-[#2a1a35] text-[#DA70D6] px-4 py-2 rounded-lg border border-[#DA70D6]/30">
                                     <span className="block text-xs uppercase tracking-wide opacity-80">Nhận ngay</span>
@@ -98,7 +115,7 @@ const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate 
                             </ul>
 
                             <button 
-                                onClick={() => onAuthNavigate('signup')}
+                                onClick={() => handlePlanClick(plan)}
                                 className={`w-full font-bold py-3.5 px-6 rounded-xl transition-all duration-300 ${
                                     plan.highlight 
                                         ? 'gradient-button text-white shadow-lg' 

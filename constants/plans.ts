@@ -23,6 +23,7 @@ export const plans: PricingPlan[] = [
         id: 'plan_pro',
         name: 'Pro',
         price: 599000,
+        originalPrice: 700000,
         currency: 'đ',
         features: [
             'Tổng 7,000 Credits',
@@ -42,6 +43,7 @@ export const plans: PricingPlan[] = [
         id: 'plan_ultra',
         name: 'Ultra',
         price: 1999000,
+        originalPrice: 2500000,
         currency: 'đ',
         features: [
             'Tổng 25,000 Credits',

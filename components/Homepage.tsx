@@ -121,6 +121,8 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
                 <div className="flex items-center gap-9">
                     <button onClick={() => handleNavClick(Tool.ArchitecturalRendering)} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Tính năng</button>
                     
+                    <button onClick={onNavigateToPricing} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Bảng giá</button>
+
                     {session && (
                         <>
                             <button onClick={onGoToGallery} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Thư viện</button>
@@ -206,6 +208,10 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
                     <div className="flex flex-col gap-4 text-base font-medium flex-1 overflow-y-auto">
                         <button onClick={() => handleNavClick(Tool.ArchitecturalRendering)} className="text-left text-white/90 py-3 px-4 rounded-lg hover:bg-[#191919] border border-transparent hover:border-[#302839] transition-all flex items-center gap-3">
                             <span className="material-symbols-outlined text-[#7f13ec]">home_app_logo</span> Tính năng
+                        </button>
+                        
+                        <button onClick={() => { onNavigateToPricing && onNavigateToPricing(); setIsMobileMenuOpen(false); }} className="text-left text-white/90 py-3 px-4 rounded-lg hover:bg-[#191919] border border-transparent hover:border-[#302839] transition-all flex items-center gap-3">
+                            <span className="material-symbols-outlined text-[#7f13ec]">payments</span> Bảng giá
                         </button>
                         
                         {session ? (
@@ -423,6 +429,7 @@ const Footer: React.FC<{onStart: () => void, onNavigateToPricing?: () => void}> 
                 <div className="flex flex-col gap-4">
                     <h3 className="font-bold text-white">Sản phẩm</h3>
                     <button onClick={onStart} className="text-gray-400 hover:text-white text-left text-sm transition-colors">Tính năng</button>
+                    <button onClick={onNavigateToPricing} className="text-gray-400 hover:text-white text-left text-sm transition-colors">Bảng giá</button>
                     <button onClick={onStart} className="text-gray-400 hover:text-white text-left text-sm transition-colors">Thư viện</button>
                 </div>
                 

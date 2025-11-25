@@ -55,6 +55,7 @@ export interface PricingPlan {
   id: string;
   name: string;
   price: number;
+  originalPrice?: number; // Added for displaying strike-through price
   currency: string;
   features: string[];
   type: 'subscription' | 'credit';
