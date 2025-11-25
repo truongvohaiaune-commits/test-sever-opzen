@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PricingPlan } from '../types';
 import { User } from '@supabase/supabase-js';
 import * as paymentService from '../services/paymentService';
@@ -12,13 +12,11 @@ interface PaymentPageProps {
     onSuccess: () => void;
 }
 
-const QRCodeIcon = () => (
-    <svg className="w-40 h-40 text-gray-800 bg-white p-2 rounded-lg shadow-md" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-        <path fill="currentColor" d="M128 256a128 128 0 1 1 128-128 128 128 0 0 1-128 128Z"/>
-        <path fill="#fff" d="M128 0a128 128 0 0 0 0 256V0Z"/>
-        <path fill="currentColor" d="M188 68v40h-40V68ZM88 68v40H48V68ZM68 48H48v20h20Zm20 0V28H68v20Zm100 0h20v20h-20Zm-20 20V48h20v20Zm0 0h20v20h-20Zm-20-20H88v20h80ZM68 88H48v20h20Zm20 0V68H68v20Zm-20 20H48v20h20Zm0 20H48v20h20Zm0 20H48v20h20Zm0 20H48v20h20Zm20-20H68v20h20Zm20 0H88v20h20Zm-20-20H68v20h20Zm100 80v-20h20v20Zm-20-20v-20h20v20Zm0-20v-20h20v20Zm0-20v-20h20v20Zm-20 60v-20h20v20Zm0-20v-20h20v20Zm-20 0v-20h20v20Zm-20 0v-20h20v20Zm20 20v20h20v-20Zm40 0v20h20v-20Zm-60-60H88v20h20Zm20 0h20v20h-20Zm0 20H88v20h40Zm0 20h20v20h-20Zm-20 20H88v20h20Zm100-20h-20v20h20Zm-20-20h-20v20h20Zm0-20h-20v20h20Z"/>
-    </svg>
-);
+// --- CẤU HÌNH TÀI KHOẢN NGÂN HÀNG SEPAY ---
+// Bạn hãy thay đổi thông tin này khớp với tài khoản đã add trên SePay
+const BANK_ID = "MB"; // Mã ngân hàng (MB, VCB, ACB...)
+const ACCOUNT_NO = "0123456789"; // Số tài khoản
+const ACCOUNT_NAME = "NGUYEN VAN A"; // Tên chủ tài khoản
 
 const CopyIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -38,24 +36,61 @@ const TicketIcon = () => (
     </svg>
 );
 
+const CheckCircleIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+);
+
 const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess }) => {
     const [voucherCode, setVoucherCode] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
     const [voucherError, setVoucherError] = useState<string | null>(null);
     const [isCheckingVoucher, setIsCheckingVoucher] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
-
-    // Reset voucher when plan changes
-    useEffect(() => {
-        setVoucherCode('');
-        setAppliedDiscount(0);
-        setVoucherError(null);
-    }, [plan.id]);
+    const [isCreatingTx, setIsCreatingTx] = useState(false);
+    
+    // Transaction State
+    const [transactionData, setTransactionData] = useState<{id: string, code: string, amount: number} | null>(null);
+    const [isPaid, setIsPaid] = useState(false);
 
     const originalPrice = plan.price;
     const finalPrice = originalPrice * (1 - appliedDiscount / 100);
-    const transferContent = `${user.email?.split('@')[0] || user.phone || 'USER'} ${plan.name.toUpperCase()}`;
+
+    // 1. Khởi tạo giao dịch Pending khi vào trang (hoặc khi giá thay đổi do Voucher)
+    useEffect(() => {
+        const initTransaction = async () => {
+            setIsCreatingTx(true);
+            setTransactionData(null); // Reset previous
+            try {
+                const result = await paymentService.createPendingTransaction(user.id, plan, finalPrice);
+                setTransactionData({
+                    id: result.transactionId,
+                    code: result.transactionCode,
+                    amount: result.amount
+                });
+            } catch (error) {
+                console.error("Failed to create pending transaction", error);
+                // alert("Không thể khởi tạo giao dịch. Vui lòng kiểm tra kết nối.");
+            } finally {
+                setIsCreatingTx(false);
+            }
+        };
+
+        initTransaction();
+    }, [plan.id, appliedDiscount]);
+
+    // 2. Lắng nghe trạng thái giao dịch Realtime
+    useEffect(() => {
+        if (!transactionData) return;
+
+        const unsubscribe = paymentService.subscribeToTransaction(transactionData.id, () => {
+            setIsPaid(true);
+        });
+
+        return () => {
+            unsubscribe();
+        };
+    }, [transactionData]);
 
     const handleApplyVoucher = async () => {
         const code = voucherCode.trim().toUpperCase();
@@ -66,44 +101,34 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
 
         setIsCheckingVoucher(true);
         setVoucherError(null);
-        setAppliedDiscount(0);
-
+        
         try {
-            // Check voucher existence
             const percent = await paymentService.checkVoucher(code);
-            setAppliedDiscount(percent);
+            setAppliedDiscount(percent); // This will trigger useEffect to re-create transaction with new price
         } catch (err: any) {
             setVoucherError(err.message || 'Mã giảm giá không hợp lệ.');
+            setAppliedDiscount(0);
         } finally {
             setIsCheckingVoucher(false);
         }
     };
 
-    const handleConfirmPayment = async () => {
-        setIsProcessing(true);
-        try {
-            // Pass only plan and voucher code. The backend will calculate price securely.
-            await paymentService.processPayment(
-                user.id, 
-                plan, 
-                'qr', 
-                appliedDiscount > 0 ? voucherCode.toUpperCase() : undefined
-            );
-            setIsSuccessModalOpen(true);
-        } catch (error: any) {
-            alert(error.message || "Có lỗi xảy ra khi xác nhận thanh toán.");
-        } finally {
-            setIsProcessing(false);
-        }
+    const handleRemoveVoucher = () => {
+        setAppliedDiscount(0);
+        setVoucherCode('');
     };
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
     };
 
+    // SePay Dynamic QR URL
+    const qrUrl = transactionData 
+        ? `https://qr.sepay.vn/img?bank=${BANK_ID}&acc=${ACCOUNT_NO}&template=compact&amount=${transactionData.amount}&des=${transactionData.code}`
+        : '';
+
     return (
         <div className="max-w-5xl mx-auto p-4 md:p-8 animate-fade-in">
-            {/* Back Button */}
             <button 
                 onClick={onBack} 
                 className="flex items-center gap-2 text-text-secondary dark:text-gray-400 hover:text-text-primary dark:hover:text-white transition-colors mb-6"
@@ -117,34 +142,62 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                 
                 {/* LEFT: TRANSFER INFO */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-surface dark:bg-[#1A1A1A] rounded-2xl p-6 border border-border-color dark:border-gray-700 shadow-sm">
+                    <div className="bg-surface dark:bg-[#1A1A1A] rounded-2xl p-6 border border-border-color dark:border-gray-700 shadow-sm relative overflow-hidden">
+                        
+                        {isPaid && (
+                            <div className="absolute inset-0 bg-surface dark:bg-[#1A1A1A] z-20 flex flex-col items-center justify-center text-center p-8 animate-fade-in">
+                                <CheckCircleIcon />
+                                <h2 className="text-2xl font-bold text-text-primary dark:text-white mt-4 mb-2">Thanh toán thành công!</h2>
+                                <p className="text-text-secondary dark:text-gray-400 mb-6">
+                                    Credits đã được cộng vào tài khoản của bạn. Cảm ơn bạn đã sử dụng dịch vụ.
+                                </p>
+                                <button 
+                                    onClick={onSuccess} 
+                                    className="px-8 py-3 bg-[#7f13ec] hover:bg-[#690fca] text-white font-bold rounded-xl transition-colors shadow-lg shadow-purple-500/20"
+                                >
+                                    Bắt đầu sáng tạo ngay
+                                </button>
+                            </div>
+                        )}
+
                         <h2 className="text-xl font-bold text-text-primary dark:text-white mb-6 flex items-center gap-2">
                             <span className="w-8 h-8 bg-[#7f13ec] rounded-full flex items-center justify-center text-white text-sm">1</span>
-                            Thông tin chuyển khoản
+                            Quét mã để thanh toán
                         </h2>
                         
                         <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+                            {/* QR CODE AREA */}
                             <div className="flex flex-col items-center">
-                                <div className="bg-white p-2 rounded-xl shadow-sm">
-                                    <QRCodeIcon />
+                                <div className="bg-white p-2 rounded-xl shadow-sm w-48 h-48 flex items-center justify-center relative">
+                                    {isCreatingTx || !qrUrl ? (
+                                        <div className="flex flex-col items-center">
+                                            <Spinner />
+                                            <span className="text-xs text-gray-500 mt-2">Đang tạo mã...</span>
+                                        </div>
+                                    ) : (
+                                        <img src={qrUrl} alt="QR Code SePay" className="w-full h-full object-contain" />
+                                    )}
                                 </div>
-                                <p className="text-xs text-text-secondary dark:text-gray-400 mt-2">Quét mã để thanh toán nhanh</p>
+                                <p className="text-xs text-text-secondary dark:text-gray-400 mt-3 text-center max-w-[200px]">
+                                    Mở ứng dụng ngân hàng và quét mã QR để nội dung chuyển khoản chính xác 100%.
+                                </p>
                             </div>
 
+                            {/* BANK DETAILS TEXT */}
                             <div className="flex-1 w-full space-y-4">
                                 <div className="bg-main-bg dark:bg-gray-800/50 p-4 rounded-xl border border-border-color dark:border-gray-700">
                                     <div className="flex justify-between items-center mb-1">
                                         <span className="text-sm text-text-secondary dark:text-gray-400">Ngân hàng</span>
-                                        <span className="font-bold text-text-primary dark:text-white">MB Bank (Quân Đội)</span>
+                                        <span className="font-bold text-text-primary dark:text-white">{BANK_ID}</span>
                                     </div>
                                 </div>
                                 
-                                <div className="bg-main-bg dark:bg-gray-800/50 p-4 rounded-xl border border-border-color dark:border-gray-700 relative group">
+                                <div className="bg-main-bg dark:bg-gray-800/50 p-4 rounded-xl border border-border-color dark:border-gray-700">
                                     <div className="flex justify-between items-center mb-1">
                                         <span className="text-sm text-text-secondary dark:text-gray-400">Số tài khoản</span>
                                         <div className="flex items-center gap-2">
-                                            <span className="font-bold text-text-primary dark:text-white font-mono text-lg">0123456789</span>
-                                            <button onClick={() => copyToClipboard('0123456789')} className="text-gray-400 hover:text-[#7f13ec]"><CopyIcon /></button>
+                                            <span className="font-bold text-text-primary dark:text-white font-mono text-lg">{ACCOUNT_NO}</span>
+                                            <button onClick={() => copyToClipboard(ACCOUNT_NO)} className="text-gray-400 hover:text-[#7f13ec]"><CopyIcon /></button>
                                         </div>
                                     </div>
                                 </div>
@@ -152,21 +205,31 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                                 <div className="bg-main-bg dark:bg-gray-800/50 p-4 rounded-xl border border-border-color dark:border-gray-700">
                                     <div className="flex justify-between items-center mb-1">
                                         <span className="text-sm text-text-secondary dark:text-gray-400">Chủ tài khoản</span>
-                                        <span className="font-bold text-text-primary dark:text-white uppercase">NGUYEN VAN A</span>
+                                        <span className="font-bold text-text-primary dark:text-white uppercase">{ACCOUNT_NAME}</span>
                                     </div>
                                 </div>
 
                                 <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-xl border border-yellow-200 dark:border-yellow-800/50 relative">
                                     <div className="flex justify-between items-center mb-1">
-                                        <span className="text-sm text-yellow-800 dark:text-yellow-500 font-medium">Nội dung chuyển khoản</span>
+                                        <span className="text-sm text-yellow-800 dark:text-yellow-500 font-medium">Nội dung (Bắt buộc)</span>
                                         <div className="flex items-center gap-2">
-                                            <span className="font-bold text-yellow-900 dark:text-yellow-400 font-mono">{transferContent}</span>
-                                            <button onClick={() => copyToClipboard(transferContent)} className="text-yellow-700 hover:text-yellow-900 dark:text-yellow-600 dark:hover:text-yellow-400"><CopyIcon /></button>
+                                            <span className="font-bold text-yellow-900 dark:text-yellow-400 font-mono text-lg">
+                                                {transactionData ? transactionData.code : '...'}
+                                            </span>
+                                            <button onClick={() => transactionData && copyToClipboard(transactionData.code)} className="text-yellow-700 hover:text-yellow-900 dark:text-yellow-600 dark:hover:text-yellow-400"><CopyIcon /></button>
                                         </div>
                                     </div>
-                                    <p className="text-xs text-yellow-700/70 dark:text-yellow-500/70 mt-1">*Vui lòng nhập chính xác nội dung để hệ thống xử lý tự động.</p>
+                                    <p className="text-xs text-yellow-700/70 dark:text-yellow-500/70 mt-1">
+                                        *Hệ thống sẽ tự động kích hoạt gói ngay khi nhận được tiền (khoảng 10s - 1 phút).
+                                    </p>
                                 </div>
                             </div>
+                        </div>
+                        
+                        <div className="mt-6 flex justify-center">
+                             <div className="flex items-center gap-2 text-sm text-text-secondary dark:text-gray-400 bg-main-bg dark:bg-gray-800/30 px-4 py-2 rounded-full animate-pulse">
+                                <Spinner /> Đang chờ thanh toán...
+                             </div>
                         </div>
                     </div>
                 </div>
@@ -193,7 +256,7 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                             {/* VOUCHER INPUT */}
                             <div>
                                 <label className="text-sm font-medium text-text-secondary dark:text-gray-400 mb-1.5 block flex items-center gap-1">
-                                    <TicketIcon /> Mã giảm giá (Voucher)
+                                    <TicketIcon /> Mã giảm giá
                                 </label>
                                 <div className="flex gap-2">
                                     <input 
@@ -201,12 +264,12 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                                         placeholder="Nhập mã" 
                                         value={voucherCode}
                                         onChange={(e) => setVoucherCode(e.target.value)}
-                                        className="flex-1 bg-main-bg dark:bg-gray-800 border border-border-color dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-accent outline-none uppercase text-text-primary dark:text-white placeholder-text-secondary dark:placeholder-gray-500"
+                                        className="flex-1 bg-main-bg dark:bg-gray-800 border border-border-color dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-accent outline-none uppercase text-text-primary dark:text-white"
                                         disabled={appliedDiscount > 0}
                                     />
                                     {appliedDiscount > 0 ? (
                                         <button 
-                                            onClick={() => { setAppliedDiscount(0); setVoucherCode(''); }}
+                                            onClick={handleRemoveVoucher}
                                             className="bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                                         >
                                             Xóa
@@ -222,10 +285,7 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                                     )}
                                 </div>
                                 {appliedDiscount > 0 && (
-                                    <p className="text-xs text-green-500 mt-2 font-medium flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                        </svg>
+                                    <p className="text-xs text-green-500 mt-2 font-medium">
                                         Mã hợp lệ! Giảm {appliedDiscount}%
                                     </p>
                                 )}
@@ -251,41 +311,13 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                                 </div>
                             </div>
                         </div>
-
-                        <button 
-                            onClick={handleConfirmPayment}
-                            disabled={isProcessing}
-                            className="w-full bg-[#7f13ec] hover:bg-[#690fca] text-white font-bold py-3.5 rounded-xl shadow-lg shadow-purple-500/30 transition-all hover:scale-[1.02] disabled:opacity-70 disabled:hover:scale-100 flex items-center justify-center gap-2"
-                        >
-                            {isProcessing ? <Spinner /> : 'Xác nhận đã chuyển khoản'}
-                        </button>
-                        <p className="text-xs text-center text-text-secondary dark:text-gray-500 mt-3">
-                            Bằng việc xác nhận, bạn đồng ý với điều khoản dịch vụ.
-                        </p>
+                        
+                        <div className="text-xs text-center text-text-secondary dark:text-gray-500">
+                            Giao dịch được bảo mật và xử lý tự động.
+                        </div>
                     </div>
                 </div>
             </div>
-
-            {/* SUCCESS MODAL */}
-            {isSuccessModalOpen && (
-                <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 animate-fade-in">
-                    <div className="bg-surface dark:bg-[#1A1A1A] p-8 rounded-2xl max-w-md w-full text-center shadow-2xl border border-border-color dark:border-gray-700">
-                        <div className="w-20 h-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <svg className="w-10 h-10 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                        </div>
-                        <h3 className="text-2xl font-bold text-text-primary dark:text-white mb-2">Gửi yêu cầu thành công!</h3>
-                        <p className="text-text-secondary dark:text-gray-300 mb-8">
-                            Hệ thống đã ghi nhận thông tin. Credits sẽ được cộng vào tài khoản của bạn ngay khi chúng tôi nhận được tiền (thường trong 1-5 phút).
-                        </p>
-                        <button 
-                            onClick={onSuccess} 
-                            className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition-colors"
-                        >
-                            Quay về trang chủ
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
