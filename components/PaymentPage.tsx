@@ -38,41 +38,57 @@ const TicketIcon = () => (
     </svg>
 );
 
-const VALID_VOUCHERS: Record<string, number> = {
-    'OPZEN10': 10,
-    'OPZEN20': 20,
-    'SALE50': 50,
-    'WELCOME': 15
-};
-
 const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess }) => {
     const [voucherCode, setVoucherCode] = useState('');
     const [appliedDiscount, setAppliedDiscount] = useState<number>(0);
     const [voucherError, setVoucherError] = useState<string | null>(null);
+    const [isCheckingVoucher, setIsCheckingVoucher] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+
+    // Reset voucher when plan changes
+    useEffect(() => {
+        setVoucherCode('');
+        setAppliedDiscount(0);
+        setVoucherError(null);
+    }, [plan.id]);
 
     const originalPrice = plan.price;
     const finalPrice = originalPrice * (1 - appliedDiscount / 100);
     const transferContent = `${user.email?.split('@')[0] || user.phone || 'USER'} ${plan.name.toUpperCase()}`;
 
-    const handleApplyVoucher = () => {
+    const handleApplyVoucher = async () => {
         const code = voucherCode.trim().toUpperCase();
-        if (!code) return;
+        if (!code) {
+            setVoucherError('Vui lòng nhập mã.');
+            return;
+        }
 
-        if (VALID_VOUCHERS[code]) {
-            setAppliedDiscount(VALID_VOUCHERS[code]);
-            setVoucherError(null);
-        } else {
-            setVoucherError('Mã giảm giá không hợp lệ hoặc đã hết hạn.');
-            setAppliedDiscount(0);
+        setIsCheckingVoucher(true);
+        setVoucherError(null);
+        setAppliedDiscount(0);
+
+        try {
+            // Check voucher existence
+            const percent = await paymentService.checkVoucher(code);
+            setAppliedDiscount(percent);
+        } catch (err: any) {
+            setVoucherError(err.message || 'Mã giảm giá không hợp lệ.');
+        } finally {
+            setIsCheckingVoucher(false);
         }
     };
 
     const handleConfirmPayment = async () => {
         setIsProcessing(true);
         try {
-            await paymentService.processPayment(user.id, plan, 'qr', finalPrice, appliedDiscount > 0 ? voucherCode.toUpperCase() : undefined);
+            // Pass only plan and voucher code. The backend will calculate price securely.
+            await paymentService.processPayment(
+                user.id, 
+                plan, 
+                'qr', 
+                appliedDiscount > 0 ? voucherCode.toUpperCase() : undefined
+            );
             setIsSuccessModalOpen(true);
         } catch (error: any) {
             alert(error.message || "Có lỗi xảy ra khi xác nhận thanh toán.");
@@ -83,7 +99,6 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
 
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
-        // Could add a toast here
     };
 
     return (
@@ -111,7 +126,6 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                         <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
                             <div className="flex flex-col items-center">
                                 <div className="bg-white p-2 rounded-xl shadow-sm">
-                                    {/* Placeholder for dynamic QR generation if needed later */}
                                     <QRCodeIcon />
                                 </div>
                                 <p className="text-xs text-text-secondary dark:text-gray-400 mt-2">Quét mã để thanh toán nhanh</p>
@@ -187,17 +201,35 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                                         placeholder="Nhập mã" 
                                         value={voucherCode}
                                         onChange={(e) => setVoucherCode(e.target.value)}
-                                        className="flex-1 bg-main-bg dark:bg-gray-800 border border-border-color dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-accent outline-none uppercase"
+                                        className="flex-1 bg-main-bg dark:bg-gray-800 border border-border-color dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-accent outline-none uppercase text-text-primary dark:text-white placeholder-text-secondary dark:placeholder-gray-500"
+                                        disabled={appliedDiscount > 0}
                                     />
-                                    <button 
-                                        onClick={handleApplyVoucher}
-                                        className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-text-primary dark:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                                    >
-                                        Áp dụng
-                                    </button>
+                                    {appliedDiscount > 0 ? (
+                                        <button 
+                                            onClick={() => { setAppliedDiscount(0); setVoucherCode(''); }}
+                                            className="bg-red-100 dark:bg-red-900/50 hover:bg-red-200 dark:hover:bg-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                                        >
+                                            Xóa
+                                        </button>
+                                    ) : (
+                                        <button 
+                                            onClick={handleApplyVoucher}
+                                            disabled={isCheckingVoucher || !voucherCode.trim()}
+                                            className="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-text-primary dark:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                                        >
+                                            {isCheckingVoucher ? <Spinner /> : 'Áp dụng'}
+                                        </button>
+                                    )}
                                 </div>
-                                {appliedDiscount > 0 && <p className="text-xs text-green-500 mt-1">Đã áp dụng mã giảm {appliedDiscount}%</p>}
-                                {voucherError && <p className="text-xs text-red-500 mt-1">{voucherError}</p>}
+                                {appliedDiscount > 0 && (
+                                    <p className="text-xs text-green-500 mt-2 font-medium flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                        </svg>
+                                        Mã hợp lệ! Giảm {appliedDiscount}%
+                                    </p>
+                                )}
+                                {voucherError && <p className="text-xs text-red-500 mt-2">{voucherError}</p>}
                             </div>
 
                             <div className="space-y-2 pt-2">
@@ -206,8 +238,8 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                                     <span>{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(originalPrice)}</span>
                                 </div>
                                 {appliedDiscount > 0 && (
-                                    <div className="flex justify-between text-sm text-green-500">
-                                        <span>Giảm giá ({appliedDiscount}%)</span>
+                                    <div className="flex justify-between text-sm text-green-500 font-medium">
+                                        <span>Giảm giá</span>
                                         <span>- {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(originalPrice * appliedDiscount / 100)}</span>
                                     </div>
                                 )}

@@ -55,76 +55,64 @@ export interface PaymentResult {
     transactionId?: string;
 }
 
+// --- NEW: Verify Voucher from DB ---
+export const checkVoucher = async (code: string): Promise<number> => {
+    try {
+        const { data, error } = await supabase
+            .from('coupons')
+            .select('discount_percent')
+            .eq('code', code.toUpperCase())
+            .eq('is_active', true)
+            .single();
+
+        if (error || !data) {
+            throw new Error("Mã giảm giá không tồn tại hoặc đã hết hạn.");
+        }
+        return data.discount_percent;
+    } catch (e: any) {
+        throw e; // Propagate error to UI
+    }
+};
+
 export const processPayment = async (
     userId: string, 
     plan: PricingPlan, 
     paymentMethod: 'qr' | 'card',
-    customAmount?: number,
     voucherCode?: string
 ): Promise<PaymentResult> => {
-    await delay(1000);
-    const transactionCode = `TXN_${Date.now().toString().slice(-6)}`;
-    const finalAmount = customAmount !== undefined ? customAmount : plan.price;
+    // --- SECURE FLOW: Call Database RPC ---
+    // Logic tính toán giá và cộng credits nằm hoàn toàn ở Server (SQL Function).
+    // Frontend chỉ gửi ID gói và Mã Voucher.
+    try {
+        const { data, error } = await supabase.rpc('process_payment_secure', {
+            p_user_id: userId,
+            p_plan_id: plan.id,
+            p_payment_method: paymentMethod,
+            p_voucher_code: voucherCode || null,
+            // Các tham số dưới đây được giữ lại để tương thích ngược nếu SQL chưa update, 
+            // nhưng SQL chuẩn nên ignore chúng và tự lookup từ bảng 'plans'.
+            p_plan_name: plan.name,
+            p_plan_price: plan.price, 
+            p_plan_credits: plan.credits || 0,
+            p_duration_months: plan.durationMonths || 1
+        });
 
-    const { error: txError } = await withRetry<{ error: any }>(() => supabase.from('transactions').insert({
-        user_id: userId,
-        plan_id: plan.id,
-        plan_name: plan.name + (voucherCode ? ` (Voucher: ${voucherCode})` : ''),
-        amount: finalAmount,
-        currency: 'VND',
-        type: plan.type,
-        credits_added: plan.credits || 0,
-        status: 'completed',
-        payment_method: paymentMethod,
-        transaction_code: transactionCode
-    }));
-
-    if (txError) throw new Error(`Lỗi lưu giao dịch: ${txError.message}`);
-
-    // Fetch current profile
-    const { data: currentProfile } = await withRetry<{ data: { credits: number, subscription_end?: string } | null }>(() => supabase
-        .from('profiles')
-        .select('credits, subscription_end')
-        .eq('id', userId)
-        .maybeSingle()
-    );
-    const currentCredits = currentProfile?.credits || 0;
-    
-    // Calculate new subscription end date (Max Date Logic)
-    const now = new Date();
-    const durationMonths = plan.durationMonths || 1;
-    
-    const potentialNewExpiry = new Date(now);
-    potentialNewExpiry.setMonth(potentialNewExpiry.getMonth() + durationMonths);
-
-    const currentExpiry = currentProfile?.subscription_end ? new Date(currentProfile.subscription_end) : null;
-
-    let newSubscriptionEnd: Date;
-
-    if (!currentExpiry || currentExpiry < now) {
-        newSubscriptionEnd = potentialNewExpiry;
-    } else {
-        if (potentialNewExpiry > currentExpiry) {
-            newSubscriptionEnd = potentialNewExpiry;
-        } else {
-            newSubscriptionEnd = currentExpiry;
+        if (error) throw error;
+        
+        if (data && data.success === false) {
+            throw new Error(data.message);
         }
+
+        return {
+            success: true,
+            message: data.message,
+            transactionId: data.transactionId
+        };
+
+    } catch (rpcError: any) {
+        console.error("[PaymentService] Secure Payment Failed:", rpcError);
+        throw new Error(rpcError.message || "Giao dịch thất bại. Vui lòng thử lại.");
     }
-
-    const { error: updateError } = await withRetry<{ error: any }>(() => supabase.from('profiles').upsert({
-        id: userId,
-        credits: currentCredits + (plan.credits || 0),
-        subscription_end: newSubscriptionEnd.toISOString(),
-        updated_at: new Date().toISOString()
-    }, { onConflict: 'id' }));
-
-    if (updateError) throw new Error(`Lỗi cập nhật tài khoản: ${updateError.message}`);
-
-    return {
-        success: true,
-        message: `Thanh toán thành công! Đã cộng ${plan.credits} credits. Hạn sử dụng đến ${newSubscriptionEnd.toLocaleDateString('vi-VN')}.`,
-        transactionId: transactionCode
-    };
 };
 
 export const getTransactionHistory = async (): Promise<Transaction[]> => {
@@ -151,7 +139,7 @@ export const getUserStatus = async (userId: string, email?: string): Promise<Use
             .maybeSingle());
 
         if (profile) {
-            // 1. Sync Email if missing (Critical Fix)
+            // 1. Sync Email if missing
             if (email && !profile.email) {
                 await supabase.from('profiles')
                     .update({ email, updated_at: new Date().toISOString() })
@@ -163,9 +151,7 @@ export const getUserStatus = async (userId: string, email?: string): Promise<Use
             const subEnd = profile.subscription_end ? new Date(profile.subscription_end) : null;
             const isExpired = subEnd ? subEnd < now : true;
 
-            // If expired and has credits, wipe them (optional logic depending on business rule)
             if (isExpired && profile.credits > 0) {
-                // For now, we keep credits but mark as expired so UI can block usage
                 return { credits: profile.credits, subscriptionEnd: profile.subscription_end, isExpired: true };
             }
 
