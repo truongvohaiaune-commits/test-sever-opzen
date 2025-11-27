@@ -1,8 +1,9 @@
 
 import React from 'react';
-import { PricingPlan } from '../types';
+import { PricingPlan, UserStatus } from '../types';
 import { Logo } from './common/Logo';
 import { plans } from '../constants/plans';
+import { Session } from '@supabase/supabase-js';
 
 // --- ICONS ---
 const CheckIcon = () => (
@@ -15,9 +16,13 @@ interface PublicPricingProps {
     onGoHome: () => void;
     onAuthNavigate: (mode: 'login' | 'signup') => void;
     onPlanSelect?: (plan: PricingPlan) => void;
+    session?: Session | null;
+    userStatus?: UserStatus | null;
+    onDashboardNavigate?: () => void;
+    onSignOut?: () => void;
 }
 
-const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate, onPlanSelect }) => {
+const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate, onPlanSelect, session, userStatus, onDashboardNavigate, onSignOut }) => {
     
     const handlePlanClick = (plan: PricingPlan) => {
         if (onPlanSelect) {
@@ -45,13 +50,36 @@ const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate,
                     <h2 className="text-white text-2xl font-bold">OPZEN AI</h2>
                 </div>
                 <div className="flex items-center gap-6">
-                    <button onClick={() => onAuthNavigate('login')} className="text-white/80 hover:text-white text-sm font-medium">Đăng nhập</button>
-                    <button 
-                        onClick={() => onAuthNavigate('signup')}
-                        className="hidden sm:flex bg-white text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors"
-                    >
-                        Đăng ký miễn phí
-                    </button>
+                    {session ? (
+                        <>
+                            <div className="hidden sm:flex items-center gap-3">
+                                {userStatus && (
+                                    <span className="text-xs font-bold text-[#DA70D6] bg-[#2a1a35] px-3 py-1.5 rounded-full border border-[#DA70D6]/30">
+                                        {userStatus.credits} Credits
+                                    </span>
+                                )}
+                                <span className="text-white text-sm font-medium truncate max-w-[150px]">
+                                    {session.user.user_metadata?.full_name || session.user.email}
+                                </span>
+                            </div>
+                            <button 
+                                onClick={onDashboardNavigate} 
+                                className="bg-white text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors"
+                            >
+                                Vào App
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button onClick={() => onAuthNavigate('login')} className="text-white/80 hover:text-white text-sm font-medium">Đăng nhập</button>
+                            <button 
+                                onClick={() => onAuthNavigate('signup')}
+                                className="hidden sm:flex bg-white text-black px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors"
+                            >
+                                Đăng ký miễn phí
+                            </button>
+                        </>
+                    )}
                 </div>
             </header>
 

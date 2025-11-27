@@ -99,8 +99,13 @@ const App: React.FC = () => {
                    }
                    setView('homepage'); 
                }
+          } else if (path === '/pricing') {
+              setView('pricing');
           } else if (path === '/') {
-              setView(session ? 'app' : 'homepage');
+              // Allow homepage even if logged in
+              setView('homepage');
+          } else if (path === '/app' && session) {
+              setView('app');
           }
       };
 
@@ -108,7 +113,7 @@ const App: React.FC = () => {
       return () => window.removeEventListener('popstate', handlePopState);
   }, [session]);
 
-  // Logic xác thực quan trọng: Xử lý OAuth redirect và session persistence
+  // 1. INITIAL SESSION CHECK (Runs once on mount)
   useEffect(() => {
     const initSession = async () => {
         setLoadingSession(true);
@@ -138,27 +143,30 @@ const App: React.FC = () => {
                     setPendingPlan(null);
                     localStorage.removeItem('pendingPlanId'); // Clear it
                     setView('payment');
-                } 
-                else {
-                    // Check for pending destination (e.g. user clicked Pricing on homepage)
-                    const pendingDest = localStorage.getItem('pendingDestination');
-                    if (pendingDest === 'pricing') {
-                        localStorage.removeItem('pendingDestination');
-                        setView('app');
-                        setActiveTool(Tool.Pricing);
-                    }
-                    // PRIORITY 3: Default App View
-                    else if (view !== 'app' && view !== 'payment') {
-                        setView('app');
-                    }
                 }
+                // PRIORITY 3: Check if path is explicitly pricing
+                else if (window.location.pathname === '/pricing') {
+                    setView('pricing');
+                }
+                // PRIORITY 4: Default App View on Initial Load if logged in and not on homepage/pricing
+                else if (window.location.pathname === '/' || window.location.pathname === '/app') {
+                     setView('app');
+                }
+            }
+        } else {
+            // Not logged in
+            if (window.location.pathname === '/pricing') {
+                setView('pricing');
             }
         }
         setLoadingSession(false);
     };
 
     initSession();
+  }, []);
 
+  // 2. AUTH STATE LISTENER (Runs when auth state or view changes)
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       
@@ -173,17 +181,12 @@ const App: React.FC = () => {
               localStorage.removeItem('pendingPlanId');
               setView('payment');
           } 
-          else {
-              // Check for pending destination
-              const pendingDest = localStorage.getItem('pendingDestination');
-              if (pendingDest === 'pricing') {
-                  localStorage.removeItem('pendingDestination');
-                  setView('app');
-                  setActiveTool(Tool.Pricing);
-              } else if (view === 'auth' || view === 'homepage' || view === 'pricing') {
-                  setView('app');
-              }
+          // Only redirect to app if we are currently on the Auth page (Login/Signup success)
+          else if (view === 'auth') {
+              setView('app');
           }
+          // Note: We intentionally DO NOT redirect from 'homepage' or 'pricing' here 
+          // to allow logged-in users to browse those pages.
       } else {
           // Logged out
           if (view === 'app' || view === 'payment') {
@@ -230,7 +233,7 @@ const App: React.FC = () => {
   const handleStartDesigning = () => {
     if (session) {
         setView('app');
-        window.history.pushState({}, '', '/');
+        window.history.pushState({}, '', '/app');
     } else {
         handleAuthNavigate('login');
     }
@@ -240,7 +243,7 @@ const App: React.FC = () => {
       setActiveTool(tool);
       if (session) {
           setView('app');
-          window.history.pushState({}, '', '/');
+          window.history.pushState({}, '', '/app');
       } else {
           handleAuthNavigate('login');
       }
@@ -256,6 +259,7 @@ const App: React.FC = () => {
   };
   
   const handleGoHome = () => {
+    // Always go to homepage view regardless of session state
     setView('homepage');
     window.history.pushState({}, '', '/');
   }
@@ -264,7 +268,7 @@ const App: React.FC = () => {
       if (session) {
           setView('app');
           setActiveTool(Tool.History);
-          window.history.pushState({}, '', '/');
+          window.history.pushState({}, '', '/app');
       }
   }
 
@@ -281,17 +285,10 @@ const App: React.FC = () => {
     }));
   };
 
-  const handleUpgrade = () => {
-      if (session) {
-          setView('app');
-          setActiveTool(Tool.Pricing);
-          window.history.pushState({}, '', '/');
-      } else {
-          // Force login and redirect to pricing afterwards
-          setAuthMode('login');
-          setView('auth');
-          localStorage.setItem('pendingDestination', 'pricing');
-      }
+  // This function now specifically routes to the Public Pricing page /pricing
+  const handleNavigateToPricing = () => {
+      setView('pricing');
+      window.history.pushState({}, '', '/pricing');
   }
   
   const handleOpenProfile = () => {
@@ -299,7 +296,7 @@ const App: React.FC = () => {
           setView('app');
           setActiveTool(Tool.Profile);
           handleToolStateChange(Tool.Profile, { activeTab: 'profile' });
-          window.history.pushState({}, '', '/');
+          window.history.pushState({}, '', '/app');
       }
   }
 
@@ -320,20 +317,15 @@ const App: React.FC = () => {
   };
 
   const handlePaymentBack = () => {
-      if (session) {
-        setView('app');
-        setActiveTool(Tool.Pricing); 
-      } else {
-        setView('pricing');
-      }
-      window.history.pushState({}, '', '/');
+      setView('pricing');
+      window.history.pushState({}, '', '/pricing');
   }
 
   const handlePaymentSuccess = () => {
       fetchUserStatus();
       setView('app');
       setActiveTool(Tool.ArchitecturalRendering);
-      window.history.pushState({}, '', '/');
+      window.history.pushState({}, '', '/app');
   };
 
   const handleSendToViewSync = (image: FileData) => {
@@ -372,248 +364,242 @@ const App: React.FC = () => {
     );
   }
   
-  // LOGGED IN VIEW
-  if (session) {
-    // Payment Page (Protected)
-    if (view === 'payment' && selectedPlan) {
-        return (
-            <div className="min-h-screen bg-main-bg dark:bg-[#121212] font-sans">
-                <Header 
-                    onGoHome={handleGoHome} 
-                    onThemeToggle={handleThemeToggle} 
-                    theme={theme} 
-                    onSignOut={handleSignOut} 
-                    userStatus={userStatus}
-                    user={session.user}
-                    onToggleNav={() => {}}
-                />
-                <PaymentPage 
-                    plan={selectedPlan}
-                    user={session.user}
-                    onBack={handlePaymentBack}
-                    onSuccess={handlePaymentSuccess}
-                />
-            </div>
-        );
-    }
-
-    if (view === 'homepage') {
-        return (
-            <Homepage 
-                onStart={() => { setView('app'); window.history.pushState({}, '', '/'); }} 
-                onAuthNavigate={() => { setView('app'); window.history.pushState({}, '', '/'); }} 
-                session={session} 
-                onGoToGallery={handleOpenGallery}
-                onUpgrade={handleUpgrade}
-                onOpenProfile={handleOpenProfile}
-                userStatus={userStatus}
-                onNavigateToTool={handleNavigateToTool}
-                onNavigateToPricing={handleUpgrade} // Logged in user goes to internal pricing
-            />
-        );
-    }
-
-    // Main App Interface
-    return (
-        <div className="h-[100dvh] bg-main-bg dark:bg-[#121212] font-sans text-text-primary dark:text-[#EAEAEA] flex flex-col transition-colors duration-300 overflow-hidden">
-            <Header 
-                onGoHome={handleGoHome} 
-                onThemeToggle={handleThemeToggle} 
-                theme={theme} 
-                onSignOut={handleSignOut} 
-                onOpenGallery={handleOpenGallery} 
-                onUpgrade={handleUpgrade} 
-                onOpenProfile={handleOpenProfile} 
-                userStatus={userStatus}
-                user={session.user}
-                onToggleNav={() => setIsMobileNavOpen(!isMobileNavOpen)}
-            />
-            <div className="relative flex flex-col md:flex-row flex-grow overflow-hidden">
-                <Navigation 
-                    activeTool={activeTool} 
-                    setActiveTool={(tool) => {
-                        setActiveTool(tool);
-                        setIsMobileNavOpen(false);
-                    }} 
-                    isMobileOpen={isMobileNavOpen}
-                    onCloseMobile={() => setIsMobileNavOpen(false)}
-                />
-                <main 
-                    className="flex-1 bg-surface/90 dark:bg-[#191919]/90 backdrop-blur-md md:m-6 md:ml-0 md:rounded-2xl shadow-lg border-t md:border border-border-color dark:border-[#302839] overflow-y-auto scrollbar-hide p-3 sm:p-6 lg:p-8 relative z-0 transition-colors duration-300"
-                    style={{ WebkitOverflowScrolling: 'touch' }}
-                >
-                    {activeTool === Tool.Pricing ? (
-                        <Checkout onPlanSelect={handleSelectPlanForPayment} />
-                    ) : activeTool === Tool.FloorPlan ? (
-                        <FloorPlan 
-                            state={toolStates.FloorPlan}
-                            onStateChange={(newState) => handleToolStateChange(Tool.FloorPlan, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.Renovation ? (
-                        <Renovation 
-                            state={toolStates.Renovation}
-                            onStateChange={(newState) => handleToolStateChange(Tool.Renovation, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.ArchitecturalRendering ? (
-                        <ImageGenerator 
-                            state={toolStates.ArchitecturalRendering}
-                            onStateChange={(newState) => handleToolStateChange(Tool.ArchitecturalRendering, newState)}
-                            onSendToViewSync={handleSendToViewSync} 
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.InteriorRendering ? (
-                        <InteriorGenerator
-                            state={toolStates.InteriorRendering}
-                            onStateChange={(newState) => handleToolStateChange(Tool.InteriorRendering, newState)}
-                            onSendToViewSync={handleSendToViewSync} 
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.UrbanPlanning ? (
-                        <UrbanPlanning
-                            state={toolStates.UrbanPlanning}
-                            onStateChange={(newState) => handleToolStateChange(Tool.UrbanPlanning, newState)}
-                            onSendToViewSync={handleSendToViewSync}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.LandscapeRendering ? (
-                        <LandscapeRendering
-                            state={toolStates.LandscapeRendering}
-                            onStateChange={(newState) => handleToolStateChange(Tool.LandscapeRendering, newState)}
-                            onSendToViewSync={handleSendToViewSync}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.AITechnicalDrawings ? (
-                        <AITechnicalDrawings
-                            state={toolStates.AITechnicalDrawings}
-                            onStateChange={(newState) => handleToolStateChange(Tool.AITechnicalDrawings, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.SketchConverter ? (
-                        <SketchConverter
-                            state={toolStates.SketchConverter}
-                            onStateChange={(newState) => handleToolStateChange(Tool.SketchConverter, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.FengShui ? (
-                        <FengShui
-                            state={toolStates.FengShui}
-                            onStateChange={(newState) => handleToolStateChange(Tool.FengShui, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.ViewSync ? (
-                        <ViewSync 
-                            state={toolStates.ViewSync}
-                            onStateChange={(newState) => handleToolStateChange(Tool.ViewSync, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.VirtualTour ? (
-                        <VirtualTour
-                            state={toolStates.VirtualTour}
-                            onStateChange={(newState) => handleToolStateChange(Tool.VirtualTour, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.PromptSuggester ? (
-                        <PromptSuggester
-                            state={toolStates.PromptSuggester}
-                            onStateChange={(newState) => handleToolStateChange(Tool.PromptSuggester, newState)}
-                            onSendToViewSyncWithPrompt={handleSendToViewSyncWithPrompt}
-                        />
-                    ) : activeTool === Tool.PromptEnhancer ? (
-                        <PromptEnhancer
-                            state={toolStates.PromptEnhancer}
-                            onStateChange={(newState) => handleToolStateChange(Tool.PromptEnhancer, newState)}
-                        />
-                    ) : activeTool === Tool.MaterialSwap ? (
-                        <MaterialSwapper 
-                            state={toolStates.MaterialSwap}
-                            onStateChange={(newState) => handleToolStateChange(Tool.MaterialSwap, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.Staging ? (
-                        <Staging 
-                            state={toolStates.Staging}
-                            onStateChange={(newState) => handleToolStateChange(Tool.Staging, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.Upscale ? (
-                        <Upscale 
-                            state={toolStates.Upscale}
-                            onStateChange={(newState) => handleToolStateChange(Tool.Upscale, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.Moodboard ? (
-                        <MoodboardGenerator 
-                            state={toolStates.Moodboard}
-                            onStateChange={(newState) => handleToolStateChange(Tool.Moodboard, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.VideoGeneration ? (
-                        <VideoGenerator 
-                            state={toolStates.VideoGeneration}
-                            onStateChange={(newState) => handleToolStateChange(Tool.VideoGeneration, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.ImageEditing ? (
-                        <ImageEditor 
-                            state={toolStates.ImageEditing}
-                            onStateChange={(newState) => handleToolStateChange(Tool.ImageEditing, newState)}
-                            userCredits={userCredits}
-                            onDeductCredits={handleDeductCredits}
-                        />
-                    ) : activeTool === Tool.History ? (
-                        <HistoryPanel />
-                    ) : activeTool === Tool.Profile ? (
-                        <UserProfile 
-                            session={session} 
-                            initialTab={toolStates.Profile.activeTab || 'profile'}
-                            onTabChange={(tab) => handleToolStateChange(Tool.Profile, { activeTab: tab })}
-                            onPurchaseSuccess={fetchUserStatus}
-                        /> 
-                    ) : null}
-                </main>
-            </div>
-        </div>
-    );
+  // Payment Page (Protected but handled by session logic)
+  if (view === 'payment' && selectedPlan && session) {
+      return (
+          <div className="min-h-screen bg-main-bg dark:bg-[#121212] font-sans">
+              <Header 
+                  onGoHome={handleGoHome} 
+                  onThemeToggle={handleThemeToggle} 
+                  theme={theme} 
+                  onSignOut={handleSignOut} 
+                  userStatus={userStatus}
+                  user={session.user}
+                  onToggleNav={() => {}}
+              />
+              <PaymentPage 
+                  plan={selectedPlan}
+                  user={session.user}
+                  onBack={handlePaymentBack}
+                  onSuccess={handlePaymentSuccess}
+              />
+          </div>
+      );
   }
 
-  // PUBLIC VIEW
-  if (view === 'auth') {
-    return <AuthPage onGoHome={() => { setView('homepage'); window.history.pushState({}, '', '/'); }} initialMode={authMode} />;
-  }
-
+  // Public Pricing Page (Accessible by both)
   if (view === 'pricing') {
       return (
         <PublicPricing 
             onGoHome={() => { setView('homepage'); window.history.pushState({}, '', '/'); }} 
             onAuthNavigate={handleAuthNavigate} 
             onPlanSelect={handleSelectPlanForPayment}
+            session={session}
+            userStatus={userStatus}
+            onDashboardNavigate={() => { setView('app'); window.history.pushState({}, '', '/app'); }}
+            onSignOut={handleSignOut}
         />
       );
   }
+
+  // LOGGED IN APP VIEW
+  if (session && view === 'app') {
+      return (
+          <div className="h-[100dvh] bg-main-bg dark:bg-[#121212] font-sans text-text-primary dark:text-[#EAEAEA] flex flex-col transition-colors duration-300 overflow-hidden">
+              <Header 
+                  onGoHome={handleGoHome} 
+                  onThemeToggle={handleThemeToggle} 
+                  theme={theme} 
+                  onSignOut={handleSignOut} 
+                  onOpenGallery={handleOpenGallery} 
+                  onUpgrade={handleNavigateToPricing} 
+                  onOpenProfile={handleOpenProfile} 
+                  userStatus={userStatus}
+                  user={session.user}
+                  onToggleNav={() => setIsMobileNavOpen(!isMobileNavOpen)}
+              />
+              <div className="relative flex flex-col md:flex-row flex-grow overflow-hidden">
+                  <Navigation 
+                      activeTool={activeTool} 
+                      setActiveTool={(tool) => {
+                          setActiveTool(tool);
+                          setIsMobileNavOpen(false);
+                      }} 
+                      isMobileOpen={isMobileNavOpen}
+                      onCloseMobile={() => setIsMobileNavOpen(false)}
+                  />
+                  <main 
+                      className="flex-1 bg-surface/90 dark:bg-[#191919]/90 backdrop-blur-md md:m-6 md:ml-0 md:rounded-2xl shadow-lg border-t md:border border-border-color dark:border-[#302839] overflow-y-auto scrollbar-hide p-3 sm:p-6 lg:p-8 relative z-0 transition-colors duration-300"
+                      style={{ WebkitOverflowScrolling: 'touch' }}
+                  >
+                      {activeTool === Tool.Pricing ? (
+                          <Checkout onPlanSelect={handleSelectPlanForPayment} />
+                      ) : activeTool === Tool.FloorPlan ? (
+                          <FloorPlan 
+                              state={toolStates.FloorPlan}
+                              onStateChange={(newState) => handleToolStateChange(Tool.FloorPlan, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.Renovation ? (
+                          <Renovation 
+                              state={toolStates.Renovation}
+                              onStateChange={(newState) => handleToolStateChange(Tool.Renovation, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.ArchitecturalRendering ? (
+                          <ImageGenerator 
+                              state={toolStates.ArchitecturalRendering}
+                              onStateChange={(newState) => handleToolStateChange(Tool.ArchitecturalRendering, newState)}
+                              onSendToViewSync={handleSendToViewSync} 
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.InteriorRendering ? (
+                          <InteriorGenerator
+                              state={toolStates.InteriorRendering}
+                              onStateChange={(newState) => handleToolStateChange(Tool.InteriorRendering, newState)}
+                              onSendToViewSync={handleSendToViewSync} 
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.UrbanPlanning ? (
+                          <UrbanPlanning
+                              state={toolStates.UrbanPlanning}
+                              onStateChange={(newState) => handleToolStateChange(Tool.UrbanPlanning, newState)}
+                              onSendToViewSync={handleSendToViewSync}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.LandscapeRendering ? (
+                          <LandscapeRendering
+                              state={toolStates.LandscapeRendering}
+                              onStateChange={(newState) => handleToolStateChange(Tool.LandscapeRendering, newState)}
+                              onSendToViewSync={handleSendToViewSync}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.AITechnicalDrawings ? (
+                          <AITechnicalDrawings
+                              state={toolStates.AITechnicalDrawings}
+                              onStateChange={(newState) => handleToolStateChange(Tool.AITechnicalDrawings, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.SketchConverter ? (
+                          <SketchConverter
+                              state={toolStates.SketchConverter}
+                              onStateChange={(newState) => handleToolStateChange(Tool.SketchConverter, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.FengShui ? (
+                          <FengShui
+                              state={toolStates.FengShui}
+                              onStateChange={(newState) => handleToolStateChange(Tool.FengShui, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.ViewSync ? (
+                          <ViewSync 
+                              state={toolStates.ViewSync}
+                              onStateChange={(newState) => handleToolStateChange(Tool.ViewSync, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.VirtualTour ? (
+                          <VirtualTour
+                              state={toolStates.VirtualTour}
+                              onStateChange={(newState) => handleToolStateChange(Tool.VirtualTour, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.PromptSuggester ? (
+                          <PromptSuggester
+                              state={toolStates.PromptSuggester}
+                              onStateChange={(newState) => handleToolStateChange(Tool.PromptSuggester, newState)}
+                              onSendToViewSyncWithPrompt={handleSendToViewSyncWithPrompt}
+                          />
+                      ) : activeTool === Tool.PromptEnhancer ? (
+                          <PromptEnhancer
+                              state={toolStates.PromptEnhancer}
+                              onStateChange={(newState) => handleToolStateChange(Tool.PromptEnhancer, newState)}
+                          />
+                      ) : activeTool === Tool.MaterialSwap ? (
+                          <MaterialSwapper 
+                              state={toolStates.MaterialSwap}
+                              onStateChange={(newState) => handleToolStateChange(Tool.MaterialSwap, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.Staging ? (
+                          <Staging 
+                              state={toolStates.Staging}
+                              onStateChange={(newState) => handleToolStateChange(Tool.Staging, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.Upscale ? (
+                          <Upscale 
+                              state={toolStates.Upscale}
+                              onStateChange={(newState) => handleToolStateChange(Tool.Upscale, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.Moodboard ? (
+                          <MoodboardGenerator 
+                              state={toolStates.Moodboard}
+                              onStateChange={(newState) => handleToolStateChange(Tool.Moodboard, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.VideoGeneration ? (
+                          <VideoGenerator 
+                              state={toolStates.VideoGeneration}
+                              onStateChange={(newState) => handleToolStateChange(Tool.VideoGeneration, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.ImageEditing ? (
+                          <ImageEditor 
+                              state={toolStates.ImageEditing}
+                              onStateChange={(newState) => handleToolStateChange(Tool.ImageEditing, newState)}
+                              userCredits={userCredits}
+                              onDeductCredits={handleDeductCredits}
+                          />
+                      ) : activeTool === Tool.History ? (
+                          <HistoryPanel />
+                      ) : activeTool === Tool.Profile ? (
+                          <UserProfile 
+                              session={session} 
+                              initialTab={toolStates.Profile.activeTab || 'profile'}
+                              onTabChange={(tab) => handleToolStateChange(Tool.Profile, { activeTab: tab })}
+                              onPurchaseSuccess={fetchUserStatus}
+                          /> 
+                      ) : null}
+                  </main>
+              </div>
+          </div>
+      );
+  }
+
+  // PUBLIC VIEW (Homepage or Auth)
+  if (view === 'auth') {
+    return <AuthPage onGoHome={() => { setView('homepage'); window.history.pushState({}, '', '/'); }} initialMode={authMode} />;
+  }
   
+  // Homepage View
   return (
     <Homepage 
         onStart={handleStartDesigning} 
         onAuthNavigate={handleAuthNavigate} 
-        onNavigateToPricing={handleUpgrade} 
+        onNavigateToPricing={handleNavigateToPricing} 
+        session={session}
+        userStatus={userStatus}
+        onGoToGallery={handleOpenGallery}
+        onOpenProfile={handleOpenProfile}
+        onNavigateToTool={handleNavigateToTool}
     />
   );
 };
