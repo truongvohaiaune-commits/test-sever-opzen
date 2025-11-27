@@ -69,7 +69,7 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
     useEffect(() => {
         const initTransaction = async () => {
             setIsCreatingTx(true);
-            setTransactionData(null);
+            setTransactionData(null); // Clear old data to show loading
             setInitError(null);
             try {
                 const result = await paymentService.createPendingTransaction(user.id, plan, finalPrice);
@@ -107,6 +107,8 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
         
         try {
             const percent = await paymentService.checkVoucher(code);
+            // Quan trọng: Clear data cũ để force tạo giao dịch mới
+            setTransactionData(null); 
             setAppliedDiscount(percent);
         } catch (err: any) {
             setVoucherError(err.message || 'Mã giảm giá không hợp lệ.');
@@ -117,6 +119,8 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
     };
 
     const handleRemoveVoucher = () => {
+        // Quan trọng: Clear data cũ để force tạo giao dịch mới
+        setTransactionData(null);
         setAppliedDiscount(0);
         setVoucherCode('');
     };
@@ -130,7 +134,6 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
     const handleSimulateSuccess = async () => {
         if (!transactionData) return;
         
-        // Nếu là mock transaction (do chưa có backend RPC), chỉ update state cục bộ
         if (transactionData.id.startsWith('mock-tx-')) {
             setIsPaid(true);
             return;
@@ -138,14 +141,10 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
 
         setIsSimulating(true);
         try {
-            // Cố gắng gọi RPC Backend để update Database thật
             const success = await paymentService.simulateSePayWebhook(transactionData.id);
-            
             if (success) {
-                // Nếu backend trả về true -> Update UI ngay (không cần chờ Realtime)
                 setIsPaid(true);
             } else {
-                // Nếu thất bại (thường do chưa chạy file SQL tạo hàm RPC)
                 const force = window.confirm(
                     "Không thể cập nhật Database (Backend). Nguyên nhân có thể do chưa chạy lệnh SQL tạo hàm 'approve_transaction_test' trong Supabase.\n\nBạn có muốn buộc chuyển sang màn hình Thành công để test giao diện không?"
                 );

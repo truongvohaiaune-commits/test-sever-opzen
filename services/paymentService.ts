@@ -131,11 +131,50 @@ export const redeemGiftCode = async (userId: string, code: string): Promise<numb
 };
 
 export const createPendingTransaction = async (userId: string, plan: PricingPlan, amount: number) => {
-    const transactionCode = `PAY${Math.floor(100000 + Math.random() * 900000)}`;
-    
-    // Nếu số tiền <= 0 (do mã giảm giá 100%), ta đánh dấu completed luôn
-    // Tuy nhiên, logic này nên xử lý ở backend hoặc UI flow riêng.
-    // Ở đây ta vẫn tạo pending, user cần bấm "Xác nhận" hoặc hệ thống tự duyệt nếu amount = 0
+    // 1. Tìm giao dịch đang pending cũ của User cho gói này
+    const { data: existingTx } = await supabase
+        .from('transactions')
+        .select('id, transaction_code, amount, created_at')
+        .eq('user_id', userId)
+        .eq('plan_id', plan.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (existingTx) {
+        // [UPDATE] Kiểm tra tiền tố để đảm bảo đồng bộ (OPZ)
+        // Nếu mã cũ là PAY... thì coi như không hợp lệ và tạo mới
+        const isCorrectPrefix = existingTx.transaction_code.startsWith('OPZ');
+
+        // Nếu số tiền khớp hoàn toàn VÀ đúng tiền tố -> Tái sử dụng (Idempotency)
+        if (existingTx.amount === amount && isCorrectPrefix) {
+            console.log(`[Payment] Reusing existing pending transaction: ${existingTx.transaction_code}`);
+            return {
+                transactionId: existingTx.id,
+                transactionCode: existingTx.transaction_code,
+                amount: existingTx.amount
+            };
+        }
+
+        // Nếu số tiền KHÁC (do áp dụng/xóa voucher) HOẶC Tiền tố cũ (PAY...) -> HỦY cái cũ để tạo cái mới
+        console.log(`[Payment] Refreshing transaction (Amount changed or Old Prefix). Cancelling old tx ${existingTx.transaction_code}...`);
+        await supabase
+            .from('transactions')
+            .update({ status: 'cancelled' })
+            .eq('id', existingTx.id);
+    }
+
+    // 2. Dọn dẹp các giao dịch 'pending' khác của user (nếu họ nhảy qua nhảy lại giữa các gói)
+    // Chỉ giữ lại 1 giao dịch pending duy nhất tại một thời điểm
+    await supabase
+        .from('transactions')
+        .update({ status: 'cancelled' })
+        .eq('user_id', userId)
+        .eq('status', 'pending');
+
+    // 3. Tạo giao dịch MỚI với Mã mới chuẩn OPZ...
+    const transactionCode = `OPZ${Math.floor(100000 + Math.random() * 900000)}`;
     
     const { data, error } = await supabase
         .from('transactions')
@@ -190,7 +229,7 @@ export const subscribeToTransaction = (transactionId: string, onPaid: () => void
 };
 
 export const checkVoucher = async (code: string): Promise<number> => {
-    // --- 2. REAL DATABASE CHECK ---
+    // --- REAL DATABASE CHECK ---
     try {
         const { data, error } = await supabase
             .from('vouchers')
@@ -221,11 +260,19 @@ export const checkVoucher = async (code: string): Promise<number> => {
 
         return data.discount_percent;
     } catch (e: any) {
+        // Fallback for hardcoded test codes if DB fails or empty
+        const hardcoded: Record<string, number> = {
+            'TEST10': 10,
+            'OPZEN20': 20,
+            'FREE100': 100
+        };
+        if (hardcoded[code]) return hardcoded[code];
+        
         throw e;
     }
 };
 
-// --- 4. DEV TOOL: Simulate Webhook (Backend Logic) ---
+// --- DEV TOOL: Simulate Webhook (Backend Logic) ---
 export const simulateSePayWebhook = async (transactionId: string): Promise<boolean> => {
     if (transactionId.startsWith('mock-tx-')) {
         console.warn("Cannot simulate backend webhook on a mock transaction ID (DB record does not exist).");
