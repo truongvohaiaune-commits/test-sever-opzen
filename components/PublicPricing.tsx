@@ -93,67 +93,88 @@ const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate,
 
                 {/* PRICING GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch mb-20">
-                    {plans.map((plan) => (
-                        <div 
-                            key={plan.id}
-                            className={`relative flex flex-col h-full p-8 rounded-2xl transition-all duration-300 border ${
-                                plan.highlight 
-                                    ? 'bg-[#191919] border-[#7f13ec] shadow-2xl shadow-[#7f13ec]/20 transform md:-translate-y-4' 
-                                    : 'bg-[#191919]/50 border-[#302839] hover:border-[#7f13ec]/50'
-                            }`}
-                        >
-                            {plan.highlight && (
-                                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                                    <span className="bg-gradient-to-r from-[#8A2BE2] to-[#DA70D6] text-white text-xs uppercase font-bold px-4 py-1.5 rounded-full shadow-lg">
-                                        Phổ biến nhất
-                                    </span>
-                                </div>
-                            )}
-                            
-                            <div className="text-center mb-6">
-                                <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
-                                <p className="text-gray-400 text-sm min-h-[40px]">{plan.description}</p>
-                            </div>
+                    {plans.map((plan) => {
+                        const discountPercent = plan.originalPrice 
+                            ? Math.round(((plan.originalPrice - plan.price) / plan.originalPrice) * 100) 
+                            : 0;
 
-                            <div className="text-center mb-6">
-                                <div className="flex flex-col items-center justify-center">
-                                    {plan.originalPrice && (
-                                        <span className="text-red-500 line-through text-xl font-bold mb-1 decoration-2 decoration-red-500/70">
-                                            {new Intl.NumberFormat('vi-VN').format(plan.originalPrice)} {plan.currency}
-                                        </span>
-                                    )}
-                                    <div className="flex justify-center items-baseline">
-                                        <span className="text-4xl font-bold text-white">{new Intl.NumberFormat('vi-VN').format(plan.price)}</span>
-                                        <span className="text-lg text-gray-400 ml-1">{plan.currency}</span>
-                                    </div>
-                                </div>
-                                <div className="mt-4 inline-block bg-[#2a1a35] text-[#DA70D6] px-4 py-2 rounded-lg border border-[#DA70D6]/30">
-                                    <span className="block text-xs uppercase tracking-wide opacity-80">Nhận ngay</span>
-                                    <span className="text-xl font-bold">{new Intl.NumberFormat('vi-VN').format(plan.credits || 0)} Credits</span>
-                                </div>
-                            </div>
-
-                            <ul className="space-y-4 mb-8 flex-grow">
-                                {plan.features.map((feature, idx) => (
-                                    <li key={idx} className="flex items-start gap-3 text-gray-300 text-sm">
-                                        <CheckIcon />
-                                        <span>{feature}</span>
-                                    </li>
-                                ))}
-                            </ul>
-
-                            <button 
-                                onClick={() => handlePlanClick(plan)}
-                                className={`w-full font-bold py-3.5 px-6 rounded-xl transition-all duration-300 ${
+                        return (
+                            <div 
+                                key={plan.id}
+                                className={`relative flex flex-col h-full p-8 rounded-2xl transition-all duration-300 border group ${
                                     plan.highlight 
-                                        ? 'gradient-button text-white shadow-lg' 
-                                        : 'bg-white text-black hover:bg-gray-200'
+                                        ? 'bg-[#191919] border-[#7f13ec] shadow-2xl shadow-[#7f13ec]/20 transform md:-translate-y-4 z-10' 
+                                        : 'bg-[#191919]/50 border-[#302839] hover:border-[#7f13ec]/50'
                                 }`}
                             >
-                                {plan.highlight ? 'Bắt đầu ngay' : 'Chọn gói này'}
-                            </button>
-                        </div>
-                    ))}
+                                {plan.highlight && (
+                                    <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                                        <span className="bg-gradient-to-r from-[#8A2BE2] to-[#DA70D6] text-white text-xs uppercase font-bold px-4 py-1.5 rounded-full shadow-lg">
+                                            Phổ biến nhất
+                                        </span>
+                                    </div>
+                                )}
+                                
+                                <div className="text-center mb-6">
+                                    <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                                    <p className="text-gray-400 text-sm min-h-[40px] flex items-center justify-center">{plan.description}</p>
+                                </div>
+
+                                <div className="text-center mb-8 relative">
+                                    <div className="flex flex-col items-center justify-center">
+                                        {plan.originalPrice && (
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-gray-500 line-through text-lg decoration-gray-500/50 font-medium">
+                                                    {new Intl.NumberFormat('vi-VN').format(plan.originalPrice)}
+                                                </span>
+                                                <span className="bg-red-500/10 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-500/20">
+                                                    -{discountPercent}%
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-center items-start">
+                                            <span className="text-5xl font-extrabold text-white tracking-tight">
+                                                {new Intl.NumberFormat('vi-VN').format(plan.price)}
+                                            </span>
+                                            <span className="text-lg text-gray-400 font-medium mt-2 ml-1.5">{plan.currency}</span>
+                                        </div>
+                                        <p className="text-gray-500 text-xs font-medium mt-2">Thanh toán một lần</p>
+                                    </div>
+                                    
+                                    <div className="mt-6 border-t border-[#302839] pt-6">
+                                        <div className="inline-flex items-center justify-center gap-2 bg-[#2a1a35] text-[#DA70D6] px-5 py-2.5 rounded-xl border border-[#DA70D6]/30 w-full">
+                                            <span className="text-xs uppercase tracking-wide font-semibold opacity-90">Nhận ngay</span>
+                                            <span className="text-xl font-bold">{new Intl.NumberFormat('vi-VN').format(plan.credits || 0)} Credits</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <ul className="space-y-4 mb-8 flex-grow">
+                                    {plan.features.map((feature, idx) => (
+                                        <li key={idx} className="flex items-start gap-3 text-gray-300 text-sm">
+                                            <div className="mt-0.5 p-0.5 rounded-full bg-green-500/10 text-green-400">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                </svg>
+                                            </div>
+                                            <span className="leading-tight">{feature}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+
+                                <button 
+                                    onClick={() => handlePlanClick(plan)}
+                                    className={`w-full font-bold py-3.5 px-6 rounded-xl transition-all duration-300 shadow-lg ${
+                                        plan.highlight 
+                                            ? 'gradient-button text-white hover:shadow-purple-500/25 hover:-translate-y-0.5' 
+                                            : 'bg-white text-black hover:bg-gray-200 hover:-translate-y-0.5'
+                                    }`}
+                                >
+                                    {plan.highlight ? 'Bắt đầu ngay' : 'Chọn gói này'}
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* FAQ SECTION */}

@@ -20,8 +20,6 @@ import Upscale from './components/Upscale';
 import HistoryPanel from './components/HistoryPanel';
 import InteriorGenerator from './components/InteriorGenerator';
 import MoodboardGenerator from './components/MoodboardGenerator';
-import PromptSuggester from './components/PromptSuggester';
-import PromptEnhancer from './components/PromptEnhancer';
 import AITechnicalDrawings from './components/AITechnicalDrawings';
 import SketchConverter from './components/SketchConverter';
 import FengShui from './components/FengShui';
@@ -36,6 +34,23 @@ import PublicPricing from './components/PublicPricing';
 import { getUserStatus, deductCredits } from './services/paymentService';
 import * as jobService from './services/jobService';
 import { plans } from './constants/plans';
+
+// Helper functions for safe navigation history
+const safeHistoryPush = (path: string) => {
+    try {
+        window.history.pushState({}, '', path);
+    } catch (e) {
+        console.warn("History push ignored (environment restriction):", e);
+    }
+};
+
+const safeHistoryReplace = (path: string) => {
+    try {
+        window.history.replaceState({}, '', path);
+    } catch (e) {
+        console.warn("History replace ignored (environment restriction):", e);
+    }
+};
 
 const App: React.FC = () => {
   const [view, setView] = useState<'homepage' | 'auth' | 'app' | 'pricing' | 'payment'>('homepage');
@@ -131,7 +146,7 @@ const App: React.FC = () => {
             if (urlPlan) {
                 setSelectedPlan(urlPlan);
                 setView('payment');
-                window.history.replaceState({}, '', '/'); // Clean URL
+                safeHistoryReplace('/'); // Clean URL
             } 
             // PRIORITY 2: Pending Plan from LocalStorage (OAuth/Refresh persistence)
             else {
@@ -184,7 +199,7 @@ const App: React.FC = () => {
           // Only redirect to app if we are currently on the Auth page (Login/Signup success)
           else if (view === 'auth') {
               setView('app');
-              window.history.replaceState({}, '', '/feature');
+              safeHistoryReplace('/feature');
           }
           // Note: We intentionally DO NOT redirect from 'homepage' or 'pricing' here 
           // to allow logged-in users to browse those pages.
@@ -234,7 +249,7 @@ const App: React.FC = () => {
   const handleStartDesigning = () => {
     if (session) {
         setView('app');
-        window.history.pushState({}, '', '/feature');
+        safeHistoryPush('/feature');
     } else {
         handleAuthNavigate('login');
     }
@@ -244,7 +259,7 @@ const App: React.FC = () => {
       setActiveTool(tool);
       if (session) {
           setView('app');
-          window.history.pushState({}, '', '/feature');
+          safeHistoryPush('/feature');
       } else {
           handleAuthNavigate('login');
       }
@@ -256,20 +271,20 @@ const App: React.FC = () => {
     setSession(null);
     setSelectedPlan(null);
     localStorage.removeItem('pendingPlanId');
-    window.history.pushState({}, '', '/');
+    safeHistoryPush('/');
   };
   
   const handleGoHome = () => {
     // Always go to homepage view regardless of session state
     setView('homepage');
-    window.history.pushState({}, '', '/');
+    safeHistoryPush('/');
   }
 
   const handleOpenGallery = () => {
       if (session) {
           setView('app');
           setActiveTool(Tool.History);
-          window.history.pushState({}, '', '/feature');
+          safeHistoryPush('/feature');
       }
   }
 
@@ -289,7 +304,7 @@ const App: React.FC = () => {
   // This function now specifically routes to the Public Pricing page /pricing
   const handleNavigateToPricing = () => {
       setView('pricing');
-      window.history.pushState({}, '', '/pricing');
+      safeHistoryPush('/pricing');
   }
   
   const handleOpenProfile = () => {
@@ -297,7 +312,7 @@ const App: React.FC = () => {
           setView('app');
           setActiveTool(Tool.Profile);
           handleToolStateChange(Tool.Profile, { activeTab: 'profile' });
-          window.history.pushState({}, '', '/feature');
+          safeHistoryPush('/feature');
       }
   }
 
@@ -307,7 +322,7 @@ const App: React.FC = () => {
           // Đã đăng nhập -> Vào thẳng trang thanh toán
           setSelectedPlan(plan);
           setView('payment');
-          window.history.pushState({}, '', `/payment?plan=${plan.id}`);
+          safeHistoryPush(`/payment?plan=${plan.id}`);
       } else {
           // Chưa đăng nhập -> Lưu gói lại -> Chuyển sang đăng nhập
           setPendingPlan(plan);
@@ -319,14 +334,14 @@ const App: React.FC = () => {
 
   const handlePaymentBack = () => {
       setView('pricing');
-      window.history.pushState({}, '', '/pricing');
+      safeHistoryPush('/pricing');
   }
 
   const handlePaymentSuccess = () => {
       fetchUserStatus();
       setView('app');
       setActiveTool(Tool.ArchitecturalRendering);
-      window.history.pushState({}, '', '/feature');
+      safeHistoryPush('/feature');
   };
 
   const handleSendToViewSync = (image: FileData) => {
@@ -335,20 +350,6 @@ const App: React.FC = () => {
         resultImages: [],
         error: null,
         customPrompt: '',
-     });
-    setActiveTool(Tool.ViewSync);
-  };
-  
-  const handleSendToViewSyncWithPrompt = (image: FileData, prompt: string) => {
-     handleToolStateChange(Tool.ViewSync, {
-        sourceImage: image,
-        customPrompt: prompt,
-        resultImages: [],
-        error: null,
-        selectedPerspective: 'default',
-        selectedAtmosphere: 'default',
-        selectedFraming: 'none',
-        sceneType: 'exterior'
      });
     setActiveTool(Tool.ViewSync);
   };
@@ -392,12 +393,12 @@ const App: React.FC = () => {
   if (view === 'pricing') {
       return (
         <PublicPricing 
-            onGoHome={() => { setView('homepage'); window.history.pushState({}, '', '/'); }} 
+            onGoHome={() => { setView('homepage'); safeHistoryPush('/'); }} 
             onAuthNavigate={handleAuthNavigate} 
             onPlanSelect={handleSelectPlanForPayment}
             session={session}
             userStatus={userStatus}
-            onDashboardNavigate={() => { setView('app'); window.history.pushState({}, '', '/feature'); }}
+            onDashboardNavigate={() => { setView('app'); safeHistoryPush('/feature'); }}
             onSignOut={handleSignOut}
         />
       );
@@ -516,17 +517,6 @@ const App: React.FC = () => {
                               userCredits={userCredits}
                               onDeductCredits={handleDeductCredits}
                           />
-                      ) : activeTool === Tool.PromptSuggester ? (
-                          <PromptSuggester
-                              state={toolStates.PromptSuggester}
-                              onStateChange={(newState) => handleToolStateChange(Tool.PromptSuggester, newState)}
-                              onSendToViewSyncWithPrompt={handleSendToViewSyncWithPrompt}
-                          />
-                      ) : activeTool === Tool.PromptEnhancer ? (
-                          <PromptEnhancer
-                              state={toolStates.PromptEnhancer}
-                              onStateChange={(newState) => handleToolStateChange(Tool.PromptEnhancer, newState)}
-                          />
                       ) : activeTool === Tool.MaterialSwap ? (
                           <MaterialSwapper 
                               state={toolStates.MaterialSwap}
@@ -587,7 +577,7 @@ const App: React.FC = () => {
 
   // PUBLIC VIEW (Homepage or Auth)
   if (view === 'auth') {
-    return <AuthPage onGoHome={() => { setView('homepage'); window.history.pushState({}, '', '/'); }} initialMode={authMode} />;
+    return <AuthPage onGoHome={() => { setView('homepage'); safeHistoryPush('/'); }} initialMode={authMode} />;
   }
   
   // Homepage View

@@ -56,7 +56,7 @@ const Homepage: React.FC<HomepageProps> = (props) => {
                                 <FeatureShowcase onStart={props.onStart} onNavigateToTool={props.onNavigateToTool} />
                                 <CTA onStart={props.onStart} />
                             </main>
-                            <Footer onStart={props.onStart} onNavigateToPricing={props.onNavigateToPricing} />
+                            <Footer onStart={props.onStart} onNavigateToPricing={props.onNavigateToPricing} onNavigateToTool={props.onNavigateToTool} />
                         </div>
                     </div>
                 </div>
@@ -119,13 +119,14 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
             {/* DESKTOP MENU */}
             <div className="hidden md:flex flex-1 justify-end gap-8 items-center">
                 <div className="flex items-center gap-9">
-                    <button onClick={() => handleNavClick(Tool.ArchitecturalRendering)} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Tính năng</button>
+                    <button onClick={() => handleNavClick(Tool.ArchitecturalRendering)} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Tạo ảnh</button>
                     
+                    <button onClick={() => handleNavClick(Tool.VideoGeneration)} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Tạo video</button>
+
                     <button onClick={onNavigateToPricing} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Bảng giá</button>
 
                     {session && (
                         <>
-                            <button onClick={onGoToGallery} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Thư viện</button>
                             <button onClick={() => onOpenProfile?.()} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Giftcode</button>
                         </>
                     )}
@@ -207,7 +208,11 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
 
                     <div className="flex flex-col gap-4 text-base font-medium flex-1 overflow-y-auto">
                         <button onClick={() => handleNavClick(Tool.ArchitecturalRendering)} className="text-left text-white/90 py-3 px-4 rounded-lg hover:bg-[#191919] border border-transparent hover:border-[#302839] transition-all flex items-center gap-3">
-                            <span className="material-symbols-outlined text-[#7f13ec]">home_app_logo</span> Tính năng
+                            <span className="material-symbols-outlined text-[#7f13ec]">imagesmode</span> Tạo ảnh
+                        </button>
+
+                        <button onClick={() => handleNavClick(Tool.VideoGeneration)} className="text-left text-white/90 py-3 px-4 rounded-lg hover:bg-[#191919] border border-transparent hover:border-[#302839] transition-all flex items-center gap-3">
+                            <span className="material-symbols-outlined text-[#7f13ec]">videocam</span> Tạo video
                         </button>
                         
                         <button onClick={() => { onNavigateToPricing && onNavigateToPricing(); setIsMobileMenuOpen(false); }} className="text-left text-white/90 py-3 px-4 rounded-lg hover:bg-[#191919] border border-transparent hover:border-[#302839] transition-all flex items-center gap-3">
@@ -216,9 +221,6 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
                         
                         {session ? (
                             <>
-                                <button onClick={() => { onGoToGallery?.(); setIsMobileMenuOpen(false); }} className="text-left text-white/90 py-3 px-4 rounded-lg hover:bg-[#191919] border border-transparent hover:border-[#302839] transition-all flex items-center gap-3">
-                                    <span className="material-symbols-outlined text-[#7f13ec]">imagesmode</span> Thư viện của tôi
-                                </button>
                                 <button onClick={() => { onOpenProfile?.(); setIsMobileMenuOpen(false); }} className="text-left text-white/90 py-3 px-4 rounded-lg hover:bg-[#191919] border border-transparent hover:border-[#302839] transition-all flex items-center gap-3">
                                     <span className="material-symbols-outlined text-[#7f13ec]">card_giftcard</span> Giftcode
                                 </button>
@@ -414,7 +416,16 @@ const CTA: React.FC<{onStart: () => void}> = ({ onStart }) => {
 };
 
 // --- FOOTER ---
-const Footer: React.FC<{onStart: () => void, onNavigateToPricing?: () => void}> = ({ onStart, onNavigateToPricing }) => {
+const Footer: React.FC<{onStart: () => void, onNavigateToPricing?: () => void, onNavigateToTool?: (tool: Tool) => void}> = ({ onStart, onNavigateToPricing, onNavigateToTool }) => {
+    
+    const handleNavClick = (tool: Tool) => {
+        if (onNavigateToTool) {
+            onNavigateToTool(tool);
+        } else {
+            onStart();
+        }
+    };
+
     return (
         <footer className="mt-24 border-t border-[#302839] py-12 px-4 bg-[#0a0a0a]">
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 max-w-[1200px] mx-auto">
@@ -428,9 +439,9 @@ const Footer: React.FC<{onStart: () => void, onNavigateToPricing?: () => void}> 
                 
                 <div className="flex flex-col gap-4">
                     <h3 className="font-bold text-white">Sản phẩm</h3>
-                    <button onClick={onStart} className="text-gray-400 hover:text-white text-left text-sm transition-colors">Tính năng</button>
+                    <button onClick={() => handleNavClick(Tool.ArchitecturalRendering)} className="text-gray-400 hover:text-white text-left text-sm transition-colors">Tạo ảnh</button>
+                    <button onClick={() => handleNavClick(Tool.VideoGeneration)} className="text-gray-400 hover:text-white text-left text-sm transition-colors">Tạo video</button>
                     <button onClick={onNavigateToPricing} className="text-gray-400 hover:text-white text-left text-sm transition-colors">Bảng giá</button>
-                    <button onClick={onStart} className="text-gray-400 hover:text-white text-left text-sm transition-colors">Thư viện</button>
                 </div>
                 
                 <div className="flex flex-col gap-4">

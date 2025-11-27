@@ -54,6 +54,7 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
     const [voucherError, setVoucherError] = useState<string | null>(null);
     const [isCheckingVoucher, setIsCheckingVoucher] = useState(false);
     const [isCreatingTx, setIsCreatingTx] = useState(false);
+    const [initError, setInitError] = useState<string | null>(null);
     const [copiedField, setCopiedField] = useState<string | null>(null);
     
     // Transaction State
@@ -68,6 +69,7 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
         const initTransaction = async () => {
             setIsCreatingTx(true);
             setTransactionData(null);
+            setInitError(null);
             try {
                 const result = await paymentService.createPendingTransaction(user.id, plan, finalPrice);
                 setTransactionData({
@@ -77,13 +79,14 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                 });
             } catch (error) {
                 console.error("Failed to create pending transaction", error);
+                setInitError("Không thể khởi tạo giao dịch. Vui lòng thử lại sau.");
             } finally {
                 setIsCreatingTx(false);
             }
         };
 
         initTransaction();
-    }, [plan.id, appliedDiscount, user.id]); // Added user.id dependency
+    }, [plan.id, appliedDiscount, user.id]);
 
     // 2. Lắng nghe Realtime
     useEffect(() => {
@@ -180,7 +183,14 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                                 {/* QR Code Column */}
                                 <div className="flex flex-col items-center justify-center space-y-4">
                                     <div className="bg-white p-4 rounded-2xl shadow-md border border-gray-200 w-60 h-60 flex items-center justify-center relative group">
-                                        {isCreatingTx || !qrUrl ? (
+                                        {initError ? (
+                                            <div className="flex flex-col items-center text-red-500 text-center px-4">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span className="text-xs font-medium">Lỗi tạo mã. Vui lòng thử lại.</span>
+                                            </div>
+                                        ) : isCreatingTx || !qrUrl ? (
                                             <div className="flex flex-col items-center text-gray-400 animate-pulse">
                                                 <Spinner />
                                                 <span className="text-xs mt-2 font-medium">Đang tạo mã QR...</span>
