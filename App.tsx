@@ -591,6 +591,7 @@ const App: React.FC = () => {
         onGoToGallery={handleOpenGallery}
         onOpenProfile={handleOpenProfile}
         onNavigateToTool={handleNavigateToTool}
+        onSignOut={handleSignOut}
     />
   );
 };

@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Session } from '@supabase/supabase-js';
-import { supabase } from '../services/supabaseClient';
 import { UserStatus, Tool } from '../types';
 import { Logo } from './common/Logo';
 
@@ -15,6 +14,7 @@ interface HomepageProps {
   userStatus?: UserStatus | null;
   onNavigateToTool?: (tool: Tool) => void;
   onNavigateToPricing?: () => void;
+  onSignOut?: () => void;
 }
 
 // --- MAIN COMPONENT ---
@@ -66,7 +66,7 @@ const Homepage: React.FC<HomepageProps> = (props) => {
 };
 
 // --- HEADER ---
-const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onGoToGallery, onOpenProfile, userStatus, onNavigateToTool, onNavigateToPricing }) => {
+const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onGoToGallery, onOpenProfile, userStatus, onNavigateToTool, onNavigateToPricing, onSignOut }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -90,11 +90,6 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
         }
         return () => { document.body.style.overflow = 'unset'; };
     }, [isMobileMenuOpen]);
-
-    const handleSignOut = async () => {
-        await supabase.auth.signOut();
-        window.location.reload();
-    };
 
     const handleNavClick = (tool?: Tool) => {
         if (tool && onNavigateToTool) {
@@ -172,7 +167,7 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
                                     <span className="material-symbols-outlined text-lg">imagesmode</span> Thư viện của tôi
                                 </button>
                                 <div className="border-t border-[#302839] my-1"></div>
-                                <button onClick={handleSignOut} className="w-full text-left px-5 py-3 text-sm text-red-400 hover:bg-[#302839] transition-colors flex items-center gap-3">
+                                <button onClick={() => { onSignOut?.(); setIsDropdownOpen(false); }} className="w-full text-left px-5 py-3 text-sm text-red-400 hover:bg-[#302839] transition-colors flex items-center gap-3">
                                     <span className="material-symbols-outlined text-lg">logout</span> Đăng xuất
                                 </button>
                             </div>
@@ -243,7 +238,7 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
                                             )}
                                         </div>
                                     </div>
-                                    <button onClick={handleSignOut} className="w-full py-3 text-red-400 bg-[#302839]/50 border border-[#302839] rounded-lg font-semibold hover:bg-[#302839] transition-colors flex items-center justify-center gap-2">
+                                    <button onClick={() => onSignOut?.()} className="w-full py-3 text-red-400 bg-[#302839]/50 border border-[#302839] rounded-lg font-semibold hover:bg-[#302839] transition-colors flex items-center justify-center gap-2">
                                         <span className="material-symbols-outlined">logout</span> Đăng xuất
                                     </button>
                                 </div>

@@ -289,6 +289,7 @@ export const simulateSePayWebhook = async (transactionId: string): Promise<boole
 
         if (error) {
             console.error("[DevTool] RPC Error:", error);
+            // Throw error to be caught by UI
             throw new Error(error.message);
         }
 
@@ -300,8 +301,12 @@ export const simulateSePayWebhook = async (transactionId: string): Promise<boole
             return false;
         }
 
-    } catch (e) {
+    } catch (e: any) {
         console.error("[DevTool] Failed to simulate webhook:", e);
-        return false;
+        // Nếu lỗi là do hàm RPC chưa tồn tại
+        if (e.message?.includes('function') && e.message?.includes('does not exist')) {
+            throw new Error("MISSING_RPC");
+        }
+        throw e;
     }
 };
