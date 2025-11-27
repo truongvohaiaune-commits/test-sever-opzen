@@ -60,6 +60,7 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
     // Transaction State
     const [transactionData, setTransactionData] = useState<{id: string, code: string, amount: number} | null>(null);
     const [isPaid, setIsPaid] = useState(false);
+    const [isSimulating, setIsSimulating] = useState(false);
 
     const originalPrice = plan.price;
     const finalPrice = originalPrice * (1 - appliedDiscount / 100);
@@ -126,6 +127,40 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
         setTimeout(() => setCopiedField(null), 2000);
     };
 
+    const handleSimulateSuccess = async () => {
+        if (!transactionData) return;
+        
+        // Nếu là mock transaction (do chưa có backend RPC), chỉ update state cục bộ
+        if (transactionData.id.startsWith('mock-tx-')) {
+            setIsPaid(true);
+            return;
+        }
+
+        setIsSimulating(true);
+        try {
+            // Cố gắng gọi RPC Backend để update Database thật
+            const success = await paymentService.simulateSePayWebhook(transactionData.id);
+            
+            if (success) {
+                // Nếu backend trả về true -> Update UI ngay (không cần chờ Realtime)
+                setIsPaid(true);
+            } else {
+                // Nếu thất bại (thường do chưa chạy file SQL tạo hàm RPC)
+                const force = window.confirm(
+                    "Không thể cập nhật Database (Backend). Nguyên nhân có thể do chưa chạy lệnh SQL tạo hàm 'approve_transaction_test' trong Supabase.\n\nBạn có muốn buộc chuyển sang màn hình Thành công để test giao diện không?"
+                );
+                if (force) {
+                    setIsPaid(true);
+                }
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Lỗi kết nối khi gọi giả lập.");
+        } finally {
+            setIsSimulating(false);
+        }
+    };
+
     const qrUrl = transactionData 
         ? `https://qr.sepay.vn/img?bank=${BANK_ID}&acc=${ACCOUNT_NO}&template=compact&amount=${transactionData.amount}&des=${transactionData.code}`
         : '';
@@ -182,7 +217,7 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                             <div className="flex flex-col md:flex-row gap-8">
                                 {/* QR Code Column */}
                                 <div className="flex flex-col items-center justify-center space-y-4">
-                                    <div className="bg-white p-4 rounded-2xl shadow-md border border-gray-200 w-60 h-60 flex items-center justify-center relative group">
+                                    <div className="bg-white p-4 rounded-2xl shadow-md border border-gray-200 w-60 h-60 flex items-center justify-center relative group overflow-hidden">
                                         {initError ? (
                                             <div className="flex flex-col items-center text-red-500 text-center px-4">
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -198,14 +233,16 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                                         ) : (
                                             <>
                                                 <img src={qrUrl} alt="QR Code" className="w-full h-full object-contain" />
-                                                <div className="absolute inset-0 flex items-center justify-center bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl">
-                                                    <span className="bg-white text-black text-xs font-bold px-3 py-1 rounded-full shadow-sm">Quét tôi</span>
+                                                {/* Live Indicator */}
+                                                <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-green-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm shadow-sm animate-pulse">
+                                                    <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                                                    LIVE
                                                 </div>
                                             </>
                                         )}
                                     </div>
                                     <p className="text-sm text-text-secondary dark:text-gray-400 text-center max-w-[220px]">
-                                        Sử dụng App Ngân hàng hoặc Ví điện tử để quét mã.
+                                        Mở App Ngân hàng để quét mã
                                     </p>
                                 </div>
 
@@ -274,11 +311,26 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                                 </div>
                             </div>
                             
-                            <div className="mt-8 pt-6 border-t border-border-color dark:border-gray-800 flex justify-center">
-                                 <div className="flex items-center gap-3 text-sm text-text-secondary dark:text-gray-400 bg-surface dark:bg-gray-800 px-5 py-2.5 rounded-full border border-border-color dark:border-gray-700 shadow-sm">
+                            <div className="mt-8 pt-6 border-t border-border-color dark:border-gray-800 flex flex-col items-center gap-3">
+                                 <div className="flex items-center gap-3 text-sm text-text-secondary dark:text-gray-400 bg-surface dark:bg-gray-800 px-5 py-2.5 rounded-full border border-border-color dark:border-gray-700 shadow-sm animate-pulse">
                                     <Spinner /> 
-                                    <span>Đang chờ thanh toán... (Tự động làm mới)</span>
+                                    <span>Đang chờ ngân hàng xác nhận... (Tự động làm mới)</span>
                                  </div>
+                                 
+                                 {/* DEV TOOL: Hidden by default or clearly marked */}
+                                 {transactionData && (
+                                    <div className="mt-4 p-2 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg flex flex-col items-center opacity-70 hover:opacity-100 transition-opacity">
+                                        <p className="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-1">Dành cho Nhà phát triển (Dev Tools)</p>
+                                        <button
+                                            onClick={handleSimulateSuccess}
+                                            disabled={isSimulating}
+                                            className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 px-3 py-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
+                                        >
+                                            {isSimulating && <Spinner />}
+                                            [DEV] Giả lập Webhook Thành Công
+                                        </button>
+                                    </div>
+                                 )}
                             </div>
                         </div>
                     </div>
