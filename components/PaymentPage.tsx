@@ -372,10 +372,9 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                             </div>
                         </div>
                         
-                        {/* Support Info */}
-                        <div className="mt-8 pt-6 border-t border-border-color dark:border-gray-700 text-xs text-center text-text-secondary dark:text-gray-500">
-                            <p>Cần hỗ trợ? Liên hệ Zalo: 09xxxxxx</p>
-                            <p className="mt-1">Giao dịch được bảo mật bởi SePay & Supabase.</p>
+                        {/* Terms Disclaimer */}
+                        <div className="mt-8 pt-6 border-t border-border-color dark:border-gray-700 text-xs text-center text-text-secondary dark:text-gray-500 italic">
+                            <p>Bằng việc thực hiện chuyển khoản, bạn đã đồng ý với Chính sách bảo mật và Điều khoản dịch vụ của chúng tôi.</p>
                         </div>
                     </div>
                 </div>

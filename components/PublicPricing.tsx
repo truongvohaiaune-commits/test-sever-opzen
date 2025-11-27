@@ -92,7 +92,7 @@ const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate,
                 </div>
 
                 {/* PRICING GRID */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch mb-20">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-8 items-stretch mb-20">
                     {plans.map((plan) => {
                         const discountPercent = plan.originalPrice 
                             ? Math.round(((plan.originalPrice - plan.price) / plan.originalPrice) * 100) 
@@ -101,59 +101,64 @@ const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate,
                         return (
                             <div 
                                 key={plan.id}
-                                className={`relative flex flex-col h-full p-8 rounded-2xl transition-all duration-300 border group ${
+                                className={`relative flex flex-col h-full p-6 md:p-4 lg:p-8 rounded-2xl transition-all duration-300 border group ${
                                     plan.highlight 
-                                        ? 'bg-[#191919] border-[#7f13ec] shadow-2xl shadow-[#7f13ec]/20 transform md:-translate-y-4 z-10' 
+                                        ? 'bg-[#191919] border-[#7f13ec] shadow-2xl shadow-[#7f13ec]/20 z-10' 
                                         : 'bg-[#191919]/50 border-[#302839] hover:border-[#7f13ec]/50'
                                 }`}
                             >
                                 {plan.highlight && (
                                     <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                                        <span className="bg-gradient-to-r from-[#8A2BE2] to-[#DA70D6] text-white text-xs uppercase font-bold px-4 py-1.5 rounded-full shadow-lg">
+                                        <span className="bg-gradient-to-r from-[#8A2BE2] to-[#DA70D6] text-white text-xs uppercase font-bold px-4 py-1.5 rounded-full shadow-lg whitespace-nowrap">
                                             Phổ biến nhất
                                         </span>
                                     </div>
                                 )}
                                 
-                                <div className="text-center mb-6">
-                                    <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
-                                    <p className="text-gray-400 text-sm min-h-[40px] flex items-center justify-center">{plan.description}</p>
+                                <div className="text-center mb-4 md:mb-6">
+                                    <h3 className="text-xl md:text-lg lg:text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                                    {/* Enforce min-height on description to align price sections */}
+                                    <p className="text-gray-400 text-sm md:text-xs lg:text-sm min-h-[60px] flex items-center justify-center px-2">{plan.description}</p>
                                 </div>
 
-                                <div className="text-center mb-8 relative">
-                                    <div className="flex flex-col items-center justify-center">
-                                        {plan.originalPrice && (
+                                <div className="text-center mb-6 md:mb-8 relative">
+                                    {/* Enforce min-height on price container to align 'Receive Credits' box */}
+                                    <div className="flex flex-col items-center justify-end min-h-[110px] pb-2">
+                                        {plan.originalPrice ? (
                                             <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-gray-500 line-through text-lg decoration-gray-500/50 font-medium">
+                                                <span className="text-gray-500 line-through text-lg md:text-sm lg:text-lg decoration-gray-500/50 font-medium">
                                                     {new Intl.NumberFormat('vi-VN').format(plan.originalPrice)}
                                                 </span>
                                                 <span className="bg-red-500/10 text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-500/20">
                                                     -{discountPercent}%
                                                 </span>
                                             </div>
+                                        ) : (
+                                            /* Spacer for alignment if no discount */
+                                            <div className="h-[28px] md:h-[24px] lg:h-[28px] mb-1"></div> 
                                         )}
                                         <div className="flex justify-center items-start">
-                                            <span className="text-5xl font-extrabold text-white tracking-tight">
+                                            <span className="text-4xl md:text-3xl lg:text-5xl font-extrabold text-white tracking-tight">
                                                 {new Intl.NumberFormat('vi-VN').format(plan.price)}
                                             </span>
-                                            <span className="text-lg text-gray-400 font-medium mt-2 ml-1.5">{plan.currency}</span>
+                                            <span className="text-base md:text-sm lg:text-lg text-gray-400 font-medium mt-2 ml-1.5">{plan.currency}</span>
                                         </div>
                                         <p className="text-gray-500 text-xs font-medium mt-2">Thanh toán một lần</p>
                                     </div>
                                     
-                                    <div className="mt-6 border-t border-[#302839] pt-6">
-                                        <div className="inline-flex items-center justify-center gap-2 bg-[#2a1a35] text-[#DA70D6] px-5 py-2.5 rounded-xl border border-[#DA70D6]/30 w-full">
-                                            <span className="text-xs uppercase tracking-wide font-semibold opacity-90">Nhận ngay</span>
-                                            <span className="text-xl font-bold">{new Intl.NumberFormat('vi-VN').format(plan.credits || 0)} Credits</span>
+                                    <div className="mt-4 md:mt-6 border-t border-[#302839] pt-4 md:pt-6">
+                                        <div className="inline-flex items-center justify-center gap-2 bg-[#2a1a35] text-[#DA70D6] px-5 py-2.5 md:px-3 md:py-2 lg:px-5 lg:py-2.5 rounded-xl border border-[#DA70D6]/30 w-full">
+                                            <span className="text-xs md:text-[10px] lg:text-xs uppercase tracking-wide font-semibold opacity-90">Nhận ngay</span>
+                                            <span className="text-lg md:text-base lg:text-xl font-bold">{new Intl.NumberFormat('vi-VN').format(plan.credits || 0)} Credits</span>
                                         </div>
                                     </div>
                                 </div>
 
-                                <ul className="space-y-4 mb-8 flex-grow">
+                                <ul className="space-y-4 md:space-y-2 lg:space-y-4 mb-8 flex-grow">
                                     {plan.features.map((feature, idx) => (
-                                        <li key={idx} className="flex items-start gap-3 text-gray-300 text-sm">
+                                        <li key={idx} className="flex items-start gap-3 md:gap-2 lg:gap-3 text-gray-300 text-sm md:text-xs lg:text-sm">
                                             <div className="mt-0.5 p-0.5 rounded-full bg-green-500/10 text-green-400">
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 md:h-3 md:w-3 lg:h-3.5 lg:w-3.5" viewBox="0 0 20 20" fill="currentColor">
                                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                 </svg>
                                             </div>
@@ -164,7 +169,7 @@ const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate,
 
                                 <button 
                                     onClick={() => handlePlanClick(plan)}
-                                    className={`w-full font-bold py-3.5 px-6 rounded-xl transition-all duration-300 shadow-lg ${
+                                    className={`w-full font-bold py-3.5 px-6 md:py-2.5 md:px-4 lg:py-3.5 lg:px-6 rounded-xl transition-all duration-300 shadow-lg text-sm md:text-xs lg:text-sm ${
                                         plan.highlight 
                                             ? 'gradient-button text-white hover:shadow-purple-500/25 hover:-translate-y-0.5' 
                                             : 'bg-white text-black hover:bg-gray-200 hover:-translate-y-0.5'

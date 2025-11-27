@@ -110,14 +110,14 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
         : 'Vĩnh viễn';
 
     return (
-        <header className={`flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#302839] px-4 sm:px-10 md:px-20 lg:px-40 py-3 sticky top-0 z-50 ${isMobileMenuOpen ? 'bg-[#121212]' : 'bg-[#121212]/90 backdrop-blur-md'}`}>
+        <header className={`flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#302839] px-4 sm:px-10 md:px-10 lg:px-40 py-3 sticky top-0 z-50 ${isMobileMenuOpen ? 'bg-[#121212]' : 'bg-[#121212]/90 backdrop-blur-md'}`}>
             <div className="flex items-center gap-2 text-white cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
                 <Logo className="w-10 h-10 sm:w-12 sm:h-12 text-[#7f13ec]" />
                 <h2 className="text-white text-xl sm:text-2xl font-bold leading-tight tracking-tight">OPZEN AI</h2>
             </div>
             
-            {/* DESKTOP MENU */}
-            <div className="hidden md:flex flex-1 justify-end gap-8 items-center">
+            {/* DESKTOP MENU (Visible on LG and above) */}
+            <div className="hidden lg:flex flex-1 justify-end gap-8 items-center">
                 <div className="flex items-center gap-9">
                     <button onClick={() => handleNavClick(Tool.ArchitecturalRendering)} className="text-white/80 hover:text-white text-sm font-medium leading-normal transition-colors">Tạo ảnh</button>
                     
@@ -142,7 +142,7 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                         >
                             {userStatus && (
-                                <span className="text-xs font-bold text-[#DA70D6] bg-[#2a1a35] px-3 py-1.5 rounded-full border border-[#DA70D6]/30 hidden lg:block group-hover:border-[#DA70D6]/60 transition-colors">
+                                <span className="text-xs font-bold text-[#DA70D6] bg-[#2a1a35] px-3 py-1.5 rounded-full border border-[#DA70D6]/30 hidden xl:block group-hover:border-[#DA70D6]/60 transition-colors">
                                     {userStatus.credits} Credits
                                 </span>
                             )}
@@ -188,14 +188,14 @@ const Header: React.FC<HomepageProps> = ({ onStart, onAuthNavigate, session, onG
                 )}
             </div>
 
-            {/* MOBILE HAMBURGER */}
-            <button className="md:hidden text-white p-2 rounded-lg hover:bg-[#302839] transition-colors" onClick={() => setIsMobileMenuOpen(true)}>
+            {/* MOBILE HAMBURGER (Visible on Tablet and Mobile) */}
+            <button className="lg:hidden text-white p-2 rounded-lg hover:bg-[#302839] transition-colors" onClick={() => setIsMobileMenuOpen(true)}>
                 <span className="material-symbols-outlined text-2xl">menu</span>
             </button>
 
             {/* MOBILE MENU OVERLAY */}
             {isMobileMenuOpen && (
-                <div className="fixed inset-0 bg-[#121212] z-50 flex flex-col p-6 animate-fade-in md:hidden">
+                <div className="fixed inset-0 bg-[#121212] z-50 flex flex-col p-6 animate-fade-in lg:hidden">
                     <div className="flex justify-between items-center mb-8">
                         <div className="flex items-center gap-2">
                             <Logo className="w-10 h-10 text-[#7f13ec]" />

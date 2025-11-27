@@ -12,7 +12,9 @@ export const plans: PricingPlan[] = [
             'Gói tiêu chuẩn',
             'Hạn sử dụng: 1 Tháng',
             'Truy cập tất cả công cụ AI',
-            'Render tốc độ tiêu chuẩn'
+            'Render tốc độ tiêu chuẩn',
+            'Hỗ trợ ưu tiên 24/7',
+            'Tính năng truy cập sớm'
         ],
         type: 'subscription',
         credits: 3000,
@@ -27,11 +29,12 @@ export const plans: PricingPlan[] = [
         currency: 'đ',
         features: [
             'Tổng 7,000 Credits',
-            '(6,000 Gốc + 1,000 Tặng)',
-            'Tăng thêm ~17% Credits',
             'Hạn sử dụng: 2 Tháng',
+            'Tối ưu chi phí & hiệu năng',
             'Truy cập tất cả công cụ AI',
-            'Render tốc độ cao'
+            'Render tốc độ cao',
+            'Hỗ trợ ưu tiên 24/7',
+            'Tính năng truy cập sớm'
         ],
         type: 'subscription',
         credits: 7000,
@@ -47,12 +50,12 @@ export const plans: PricingPlan[] = [
         currency: 'đ',
         features: [
             'Tổng 25,000 Credits',
-            '(20,000 Gốc + 5,000 Tặng)',
-            'Tăng thêm 25% Credits',
             'Hạn sử dụng: 3 Tháng',
             'Chi phí rẻ nhất/credit',
+            'Truy cập tất cả công cụ AI',
+            'Render tốc độ siêu tốc',
             'Hỗ trợ ưu tiên 24/7',
-            'Tính năng Early Access'
+            'Tính năng truy cập sớm'
         ],
         type: 'subscription',
         credits: 25000,
