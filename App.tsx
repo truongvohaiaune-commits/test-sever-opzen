@@ -312,7 +312,7 @@ const App: React.FC = () => {
           // Chưa đăng nhập -> Lưu gói lại -> Chuyển sang đăng nhập
           setPendingPlan(plan);
           localStorage.setItem('pendingPlanId', plan.id); // Backup to localStorage for OAuth redirects
-          setAuthMode('signup'); // Mặc định chuyển sang đăng ký
+          setAuthMode('login'); // Mặc định chuyển sang đăng nhập
           setView('auth');
       }
   };
