@@ -99,7 +99,7 @@ const App: React.FC = () => {
                    }
                    setView('homepage'); 
                }
-          } else if (path === '/pricing') {
+          } else if (path === '/feature') {
               setView('pricing');
           } else if (path === '/') {
               // Allow homepage even if logged in
@@ -144,18 +144,18 @@ const App: React.FC = () => {
                     localStorage.removeItem('pendingPlanId'); // Clear it
                     setView('payment');
                 }
-                // PRIORITY 3: Check if path is explicitly pricing
-                else if (window.location.pathname === '/pricing') {
+                // PRIORITY 3: Check if path is explicitly feature (pricing page)
+                else if (window.location.pathname === '/feature') {
                     setView('pricing');
                 }
-                // PRIORITY 4: Default App View on Initial Load if logged in and not on homepage/pricing
+                // PRIORITY 4: Default App View on Initial Load if logged in and not on homepage/feature
                 else if (window.location.pathname === '/' || window.location.pathname === '/app') {
                      setView('app');
                 }
             }
         } else {
             // Not logged in
-            if (window.location.pathname === '/pricing') {
+            if (window.location.pathname === '/feature') {
                 setView('pricing');
             }
         }
@@ -285,10 +285,10 @@ const App: React.FC = () => {
     }));
   };
 
-  // This function now specifically routes to the Public Pricing page /pricing
+  // This function now specifically routes to the Public Pricing page at /feature
   const handleNavigateToPricing = () => {
       setView('pricing');
-      window.history.pushState({}, '', '/pricing');
+      window.history.pushState({}, '', '/feature');
   }
   
   const handleOpenProfile = () => {
@@ -318,7 +318,7 @@ const App: React.FC = () => {
 
   const handlePaymentBack = () => {
       setView('pricing');
-      window.history.pushState({}, '', '/pricing');
+      window.history.pushState({}, '', '/feature');
   }
 
   const handlePaymentSuccess = () => {
@@ -387,7 +387,7 @@ const App: React.FC = () => {
       );
   }
 
-  // Public Pricing Page (Accessible by both)
+  // Public Pricing Page (Accessible by both, URL /feature)
   if (view === 'pricing') {
       return (
         <PublicPricing 
