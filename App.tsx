@@ -99,12 +99,12 @@ const App: React.FC = () => {
                    }
                    setView('homepage'); 
                }
-          } else if (path === '/feature') {
+          } else if (path === '/pricing') {
               setView('pricing');
           } else if (path === '/') {
               // Allow homepage even if logged in
               setView('homepage');
-          } else if (path === '/app' && session) {
+          } else if (path === '/feature' && session) {
               setView('app');
           }
       };
@@ -144,18 +144,18 @@ const App: React.FC = () => {
                     localStorage.removeItem('pendingPlanId'); // Clear it
                     setView('payment');
                 }
-                // PRIORITY 3: Check if path is explicitly feature (pricing page)
-                else if (window.location.pathname === '/feature') {
+                // PRIORITY 3: Check if path is explicitly pricing
+                else if (window.location.pathname === '/pricing') {
                     setView('pricing');
                 }
-                // PRIORITY 4: Default App View on Initial Load if logged in and not on homepage/feature
-                else if (window.location.pathname === '/' || window.location.pathname === '/app') {
+                // PRIORITY 4: Default App View on Initial Load if logged in and not on homepage/pricing
+                else if (window.location.pathname === '/' || window.location.pathname === '/feature') {
                      setView('app');
                 }
             }
         } else {
             // Not logged in
-            if (window.location.pathname === '/feature') {
+            if (window.location.pathname === '/pricing') {
                 setView('pricing');
             }
         }
@@ -184,6 +184,7 @@ const App: React.FC = () => {
           // Only redirect to app if we are currently on the Auth page (Login/Signup success)
           else if (view === 'auth') {
               setView('app');
+              window.history.replaceState({}, '', '/feature');
           }
           // Note: We intentionally DO NOT redirect from 'homepage' or 'pricing' here 
           // to allow logged-in users to browse those pages.
@@ -233,7 +234,7 @@ const App: React.FC = () => {
   const handleStartDesigning = () => {
     if (session) {
         setView('app');
-        window.history.pushState({}, '', '/app');
+        window.history.pushState({}, '', '/feature');
     } else {
         handleAuthNavigate('login');
     }
@@ -243,7 +244,7 @@ const App: React.FC = () => {
       setActiveTool(tool);
       if (session) {
           setView('app');
-          window.history.pushState({}, '', '/app');
+          window.history.pushState({}, '', '/feature');
       } else {
           handleAuthNavigate('login');
       }
@@ -268,7 +269,7 @@ const App: React.FC = () => {
       if (session) {
           setView('app');
           setActiveTool(Tool.History);
-          window.history.pushState({}, '', '/app');
+          window.history.pushState({}, '', '/feature');
       }
   }
 
@@ -285,10 +286,10 @@ const App: React.FC = () => {
     }));
   };
 
-  // This function now specifically routes to the Public Pricing page at /feature
+  // This function now specifically routes to the Public Pricing page /pricing
   const handleNavigateToPricing = () => {
       setView('pricing');
-      window.history.pushState({}, '', '/feature');
+      window.history.pushState({}, '', '/pricing');
   }
   
   const handleOpenProfile = () => {
@@ -296,7 +297,7 @@ const App: React.FC = () => {
           setView('app');
           setActiveTool(Tool.Profile);
           handleToolStateChange(Tool.Profile, { activeTab: 'profile' });
-          window.history.pushState({}, '', '/app');
+          window.history.pushState({}, '', '/feature');
       }
   }
 
@@ -318,14 +319,14 @@ const App: React.FC = () => {
 
   const handlePaymentBack = () => {
       setView('pricing');
-      window.history.pushState({}, '', '/feature');
+      window.history.pushState({}, '', '/pricing');
   }
 
   const handlePaymentSuccess = () => {
       fetchUserStatus();
       setView('app');
       setActiveTool(Tool.ArchitecturalRendering);
-      window.history.pushState({}, '', '/app');
+      window.history.pushState({}, '', '/feature');
   };
 
   const handleSendToViewSync = (image: FileData) => {
@@ -387,7 +388,7 @@ const App: React.FC = () => {
       );
   }
 
-  // Public Pricing Page (Accessible by both, URL /feature)
+  // Public Pricing Page (Accessible by both)
   if (view === 'pricing') {
       return (
         <PublicPricing 
@@ -396,7 +397,7 @@ const App: React.FC = () => {
             onPlanSelect={handleSelectPlanForPayment}
             session={session}
             userStatus={userStatus}
-            onDashboardNavigate={() => { setView('app'); window.history.pushState({}, '', '/app'); }}
+            onDashboardNavigate={() => { setView('app'); window.history.pushState({}, '', '/feature'); }}
             onSignOut={handleSignOut}
         />
       );
