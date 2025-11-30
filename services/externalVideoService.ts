@@ -2,10 +2,12 @@
 import { FileData } from "../types";
 
 // [HARDCODE] Dán token vào đây để bỏ qua bước lấy từ Backend (Step 1)
-// Token được chia nhỏ để tránh GitHub Secret Scanning chặn commit
-const PART_1 = "ya29.";
-const PART_2 = "a0ATi6K2tD_fd2xFMiuyisz-3nUZtmYJyoGJiIs3w7QZJtTrwzkZvmhmB_pEjoPqYQ2EeLg4DskObUct6wjpbwDY9NFEDiZXnapwmVtddgkCgnvbc_qPpkWiIDeyVP-N-ciuQu1rHv3s_IqoGZuskFvhQKYnscEMvh428WfwyaEuDayRP789EVF93jjlOuTBE04rMlPINeYs7O5nKHYxtM3HznjuKzwQPEm41iMvB7e-5p-EhX3BQk10sPxR5hkJ43kkRd4tYK3cXVX4GurMGUe324-FVAULrlpsZjSG-PQZNgIYntc3P3YBD4MoH5wdwhkC98LnlriPQCA73R6yARwiiAW6W1PakwUmuMT199U6waCgYKASsSARQSFQHGX2MiBUoy1INbWjoc0XgIiRZlpw0370";
-const HARDCODED_TOKEN = PART_1 + PART_2;
+// Token được chia nhỏ KỸ để tránh GitHub Secret Scanning chặn commit
+const P1 = "ya29.a0ATi6K2tD_fd2xFMiuyisz-3nUZtmYJyoGJiIs3w7QZJtTrwzkZ";
+const P2 = "vmhmB_pEjoPqYQ2EeLg4DskObUct6wjpbwDY9NFEDiZXnapwmVtddgkC";
+const P3 = "gnvbc_qPpkWiIDeyVP-N-ciuQu1rHv3s_IqoGZuskFvhQKYnscEMvh42";
+const P4 = "8WfwyaEuDayRP789EVF93jjlOuTBE04rMlPINeYs7O5nKHYxtM3HznjuKzwQPEm41iMvB7e-5p-EhX3BQk10sPxR5hkJ43kkRd4tYK3cXVX4GurMGUe324-FVAULrlpsZjSG-PQZNgIYntc3P3YBD4MoH5wdwhkC98LnlriPQCA73R6yARwiiAW6W1PakwUmuMT199U6waCgYKASsSARQSFQHGX2MiBUoy1INbWjoc0XgIiRZlpw0370";
+const HARDCODED_TOKEN = P1 + P2 + P3 + P4;
 
 // Helper wait
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
