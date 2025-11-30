@@ -108,27 +108,36 @@ const Header: React.FC<HeaderProps> = ({ onGoHome, onThemeToggle, theme, onSignO
                 </div>
             </div>
             
-            <div className="flex items-center space-x-2 sm:space-x-6">
-                {/* Status Display - External */}
+            <div className="flex items-center space-x-2 sm:space-x-5">
+                {/* Status Display - External (Premium Glassmorphism Design) */}
                 {!isDropdownOpen && userStatus && (
-                    <div className="flex items-center gap-3">
-                         {/* Credits - Hidden on extra small screens, visible on small+ */}
-                        <div 
-                            className="hidden sm:flex items-center gap-2 px-1 py-1 bg-purple-50 dark:bg-[#2a1a35] text-purple-700 dark:text-[#DA70D6] rounded-full text-sm font-semibold border border-purple-200 dark:border-[#DA70D6]/30 cursor-pointer transition-colors hover:bg-purple-100 dark:hover:bg-[#3a2a45]"
-                            title="Nhấn để nạp thêm Credits"
-                            onClick={onUpgrade}
-                        >
-                            <div className="flex items-center gap-1 px-2">
+                    <button
+                        onClick={onUpgrade}
+                        className="hidden sm:flex items-center gap-1.5 pl-3 pr-1 py-1 rounded-full bg-white/50 dark:bg-[#1E1E1E]/50 border border-gray-200 dark:border-[#333] backdrop-blur-md shadow-sm hover:shadow-purple-500/20 hover:border-purple-500/40 transition-all duration-300 group"
+                        title="Nạp thêm Credits"
+                    >
+                        <div className="flex items-center gap-2 px-2">
+                            <div className="text-yellow-500 drop-shadow-sm">
                                 <CoinIcon />
-                                <span>{userStatus.credits}</span>
                             </div>
-                            <button 
-                                className="bg-[#7f13ec] text-white px-2 py-0.5 rounded-full text-xs font-bold hover:bg-[#690fca] transition-colors"
-                            >
-                                + Nạp
-                            </button>
+                            <span className="font-bold text-sm text-gray-700 dark:text-gray-200 tabular-nums tracking-tight">
+                                {new Intl.NumberFormat('en-US').format(userStatus.credits)}
+                            </span>
                         </div>
-                    </div>
+
+                        {/* Animated 'Top Up' Button */}
+                        <div className="relative overflow-hidden rounded-full bg-gradient-to-r from-[#7f13ec] to-[#a855f7] text-white shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
+                            {/* Shine Effect */}
+                            <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 skew-y-12 transition-transform duration-500 ease-out"></div>
+                            
+                            <div className="relative flex items-center gap-1 px-3 py-1.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                </svg>
+                                <span className="text-xs font-bold uppercase tracking-wide">Nạp</span>
+                            </div>
+                        </div>
+                    </button>
                 )}
 
                 <button 
@@ -145,7 +154,7 @@ const Header: React.FC<HeaderProps> = ({ onGoHome, onThemeToggle, theme, onSignO
                         onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                         className="flex items-center gap-1 sm:gap-2 focus:outline-none"
                     >
-                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-[#8A2BE2] to-[#DA70D6] flex items-center justify-center text-white shadow-md ring-2 ring-white dark:ring-[#191919]">
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gradient-to-tr from-[#8A2BE2] to-[#DA70D6] flex items-center justify-center text-white shadow-md ring-2 ring-white dark:ring-[#191919] hover:ring-purple-200 dark:hover:ring-purple-900 transition-all">
                             <span className="text-xs font-bold">{user?.email?.[0].toUpperCase()}</span>
                         </div>
                         <ChevronDownIcon />
@@ -167,21 +176,18 @@ const Header: React.FC<HeaderProps> = ({ onGoHome, onThemeToggle, theme, onSignO
                                     <p className="text-sm font-bold text-text-primary dark:text-white mb-2">Tài khoản</p>
                                 )}
                                 
-                                {/* Credit & Expiration Display - Internal */}
+                                {/* Credit & Expiration Display - Internal Dropdown (Fallback/Mobile) */}
                                 {userStatus && (
                                     <div className="space-y-2 mt-3">
                                         <div 
-                                            className="flex items-center justify-between text-sm text-purple-700 dark:text-[#DA70D6] font-semibold bg-purple-50 dark:bg-[#2a1a35] px-3 py-2 rounded-lg border border-purple-200 dark:border-[#DA70D6]/30 cursor-pointer hover:bg-purple-100 dark:hover:bg-[#3a2a45]"
+                                            className="flex items-center justify-between text-sm bg-surface dark:bg-[#1A1A1A] px-3 py-2 rounded-lg border border-border-color dark:border-[#333] cursor-pointer hover:border-purple-500/50 transition-colors"
                                             onClick={() => { onUpgrade && onUpgrade(); setIsDropdownOpen(false); }}
                                         >
-                                             <div className="flex items-center gap-2">
-                                                 <CoinIcon />
-                                                 <span>Credits</span>
+                                             <div className="flex items-center gap-2 text-text-primary dark:text-gray-200">
+                                                 <div className="text-yellow-500"><CoinIcon /></div>
+                                                 <span className="font-semibold">{new Intl.NumberFormat('en-US').format(userStatus.credits)} Credits</span>
                                              </div>
-                                             <div className="flex items-center gap-2">
-                                                 <span>{userStatus.credits}</span>
-                                                 <span className="text-[10px] bg-[#7f13ec] text-white px-1.5 py-0.5 rounded">+ Nạp</span>
-                                             </div>
+                                             <span className="text-[10px] bg-[#7f13ec] text-white px-2 py-0.5 rounded-full font-bold">+ Nạp</span>
                                         </div>
                                         <div className="flex items-center justify-between text-xs text-text-secondary dark:text-gray-400 px-1">
                                              <div className="flex items-center gap-2">

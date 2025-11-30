@@ -429,7 +429,7 @@ const PaymentPage: React.FC<PaymentPageProps> = ({ plan, user, onBack, onSuccess
                         
                         {/* Terms Disclaimer */}
                         <div className="mt-8 pt-6 border-t border-border-color dark:border-gray-700 text-xs text-center text-text-secondary dark:text-gray-500 italic">
-                            <p>Bằng việc thực hiện chuyển khoản, bạn đã đồng ý với Chính sách bảo mật và Điều khoản dịch vụ của chúng tôi.</p>
+                            <p>Bằng việc thực hiện chuyển khoản, bạn đã đồng ý với Chính sách bảo mật và <a href="/terms-of-service" target="_blank" rel="noopener noreferrer" className="text-[#7f13ec] hover:underline font-bold">Điều khoản dịch vụ</a> của chúng tôi.</p>
                         </div>
                     </div>
                 </div>

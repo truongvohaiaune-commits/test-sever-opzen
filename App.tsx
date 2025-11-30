@@ -31,6 +31,7 @@ import Homepage from './components/Homepage';
 import AuthPage from './components/auth/AuthPage';
 import Spinner from './components/Spinner';
 import PublicPricing from './components/PublicPricing';
+import TermsOfServicePage from './components/TermsOfServicePage'; // Import Terms Page
 import { getUserStatus, deductCredits } from './services/paymentService';
 import * as jobService from './services/jobService';
 import { plans } from './constants/plans';
@@ -357,6 +358,11 @@ const App: React.FC = () => {
   const userCredits = userStatus?.credits || 0;
 
   // --- RENDER LOGIC ---
+
+  // Independent Routing Check for Terms of Service (No Session Required)
+  if (window.location.pathname === '/terms-of-service') {
+      return <TermsOfServicePage />;
+  }
 
   if (loadingSession) {
     return (

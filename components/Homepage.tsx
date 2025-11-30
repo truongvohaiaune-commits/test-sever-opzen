@@ -412,7 +412,7 @@ const CTA: React.FC<{onStart: () => void}> = ({ onStart }) => {
 
 // --- FOOTER ---
 const Footer: React.FC<{onStart: () => void, onNavigateToPricing?: () => void, onNavigateToTool?: (tool: Tool) => void}> = ({ onStart, onNavigateToPricing, onNavigateToTool }) => {
-    
+
     const handleNavClick = (tool: Tool) => {
         if (onNavigateToTool) {
             onNavigateToTool(tool);
@@ -448,8 +448,8 @@ const Footer: React.FC<{onStart: () => void, onNavigateToPricing?: () => void, o
                 
                 <div className="flex flex-col gap-4">
                     <h3 className="font-bold text-white">Pháp lý</h3>
+                    <a href="/terms-of-service" className="text-gray-400 hover:text-white text-sm transition-colors">Điều khoản dịch vụ</a>
                     <a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Chính sách bảo mật</a>
-                    <a href="#" className="text-gray-400 hover:text-white text-sm transition-colors">Điều khoản dịch vụ</a>
                 </div>
             </div>
             <div className="mt-12 pt-8 border-t border-[#302839] text-center text-gray-500 text-sm">
