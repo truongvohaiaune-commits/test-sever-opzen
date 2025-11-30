@@ -9,6 +9,10 @@ const P3 = "mLLge-txPMgczxHQPmDAx3qoS4r_vxoaniZYukJZfQKaAIcvtRuAgUxz0pxB2KKMeaso
 const P4 = "m1PWlZ_nGLVvWIuw0xo6xesGXSEnsy0P7DxBf42XgRKpTHaIsw4_BtP_AHl2n1wTHkx4aCgYKAccSARQSFQHGX2MiNqwPwi4lWBt9GARzx27g1Q0370";
 const HARDCODED_TOKEN = P1 + P2 + P3 + P4;
 
+// Change this if your Cloudflare Worker is hosted elsewhere
+// Leave empty if serving from same domain path /api
+const BACKEND_URL = ""; 
+
 // Helper wait
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -51,11 +55,14 @@ const resizeAndCompressImage = async (fileData: FileData, maxWidth: number = 102
 };
 
 // Safe JSON fetch helper with Timeout support
-const fetchJson = async (url: string, options?: RequestInit) => {
+const fetchJson = async (endpoint: string, options?: RequestInit) => {
     // 30s Default Timeout for fetch if not specified
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
     
+    // Construct Full URL
+    const url = BACKEND_URL ? `${BACKEND_URL}${endpoint}` : `/api${endpoint}`; // Assumes Cloudflare Worker is mapped to /api if local
+
     try {
         const res = await fetch(url, {
             ...options,
@@ -106,7 +113,9 @@ export const generateVideoExternal = async (prompt: string, backendUrl: string, 
 
         if (!token) {
             console.log(`[Client] Step 1: Getting Auth Token from Backend...`);
-            const authData = await fetchJson('/api/py/auth', {
+            // Cloudflare Worker handles routing via "action" inside body usually, or specific endpoints
+            // We use specific endpoints mapped in api/index.js logic (via path check) or action body
+            const authData = await fetchJson('/auth', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'auth' })
@@ -122,7 +131,7 @@ export const generateVideoExternal = async (prompt: string, backendUrl: string, 
         let mediaId = null;
         if (imageBase64) {
             console.log(`[Client] Step 2: Uploading Image to Google...`);
-            const uploadData = await fetchJson('/api/py/upload', {
+            const uploadData = await fetchJson('/upload', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'upload', token, image: imageBase64 })
@@ -133,7 +142,7 @@ export const generateVideoExternal = async (prompt: string, backendUrl: string, 
 
         // Step 3: Trigger
         console.log(`[Client] Step 3: Triggering Video Generation...`);
-        const triggerData = await fetchJson('/api/py/create', {
+        const triggerData = await fetchJson('/create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'create', token, prompt, mediaId })
@@ -145,14 +154,13 @@ export const generateVideoExternal = async (prompt: string, backendUrl: string, 
         console.log(`[Client] Step 4: Polling Status...`);
         const maxRetries = 120; 
         let attempts = 0;
-        const checkUrl = '/api/py/check';
-
+        
         while (attempts < maxRetries) {
             attempts++;
             await wait(5000);
 
             try {
-                const checkData = await fetchJson(checkUrl, {
+                const checkData = await fetchJson('/check', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'check', task_id, scene_id, token }) 
