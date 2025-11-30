@@ -4,26 +4,46 @@ import { PricingPlan, UserStatus, Transaction } from '../types';
 
 export const getUserStatus = async (userId: string, email?: string): Promise<UserStatus> => {
     try {
-        const { data, error } = await supabase
+        // 1. Try to fetch existing profile
+        let { data, error } = await supabase
             .from('profiles')
             .select('credits, subscription_end')
             .eq('id', userId)
-            .single();
+            .maybeSingle(); // Use maybeSingle to avoid PGRST116 error noise
 
-        if (error) {
-            // Handle profile not found - auto create if needed or return default
-            if (error.code === 'PGRST116' && email) {
-                 // Create profile if it doesn't exist
-                 const { error: insertError } = await supabase
-                    .from('profiles')
-                    .insert([{ id: userId, email, credits: 60 }]); // Free trial credits
+        // 2. If no profile exists and we have an email, try to create one (First time user)
+        if (!data && email) {
+             console.log("Profile not found, attempting to create new profile...");
+             const { error: insertError } = await supabase
+                .from('profiles')
+                .insert([{ id: userId, email, credits: 60 }]); // Default trial credits
+             
+             if (insertError) {
+                 // RACE CONDITION HANDLING:
+                 // If insert failed (likely code 23505 - unique violation), it means 
+                 // another request created the profile milliseconds ago.
+                 // WE MUST FETCH AGAIN. DO NOT RETURN DEFAULT VALUES.
+                 console.warn("Profile creation failed (likely race condition), forcing re-fetch...", insertError.message);
                  
-                 if (!insertError) {
-                     return { credits: 60, subscriptionEnd: null, isExpired: false };
+                 const { data: retryData, error: retryError } = await supabase
+                    .from('profiles')
+                    .select('credits, subscription_end')
+                    .eq('id', userId)
+                    .single();
+                    
+                 if (retryError || !retryData) {
+                     console.error("CRITICAL: Retry fetch also failed.", retryError);
+                     // Return 0 only if we absolutely cannot verify the user exists
+                     // This prevents the UI from showing incorrect high balances, but prevents overwriting DB
+                     return { credits: 0, subscriptionEnd: null, isExpired: false };
                  }
-            }
-            
-            console.error("Error fetching user status:", error.message || error);
+                 data = retryData;
+             } else {
+                 // Insert successful, return default new user state
+                 return { credits: 60, subscriptionEnd: null, isExpired: false };
+             }
+        } else if (!data) {
+            // No data and no email provided (shouldn't happen in auth flow)
             return { credits: 0, subscriptionEnd: null, isExpired: false };
         }
 
@@ -43,7 +63,8 @@ export const getUserStatus = async (userId: string, email?: string): Promise<Use
 };
 
 export const deductCredits = async (userId: string, amount: number, description: string): Promise<string> => {
-    // Attempt to use RPC for atomic transaction
+    // Strictly use RPC for atomic transactions.
+    // Client-side logic is unsafe for deductions as it relies on potentially stale local state.
     const { data, error } = await supabase.rpc('deduct_credits', {
         p_user_id: userId,
         p_amount: amount,
@@ -51,44 +72,16 @@ export const deductCredits = async (userId: string, amount: number, description:
     });
 
     if (error) {
-        // IMPROVED ERROR LOGGING
         console.error("deductCredits RPC error:", error.message || JSON.stringify(error));
-        
-        // Fallback: Check balance and insert log manually (NOT ATOMIC)
-        // This is a backup in case RPC is not set up on the DB yet.
-        const status = await getUserStatus(userId);
-        if (status.credits < amount) {
-            throw new Error(`Không đủ credits. Bạn có ${status.credits}, cần ${amount}.`);
-        }
-        
-        // Manual update (Risky without transaction)
-        const { data: logData, error: logError } = await supabase
-            .from('usage_logs')
-            .insert({ user_id: userId, credits_used: amount, description })
-            .select('id')
-            .single();
-            
-        if (logError) {
-            console.error("Fallback insert usage_log error:", logError.message || JSON.stringify(logError));
-            throw new Error("Ghi nhật ký sử dụng thất bại.");
-        }
-        
-        const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ credits: status.credits - amount })
-            .eq('id', userId);
-            
-        if (updateError) {
-             console.error("Critical: Failed to update profile credits after logging usage:", updateError.message || JSON.stringify(updateError));
-        }
-        
-        return logData.id;
+        throw new Error(`Giao dịch thất bại: ${error.message || 'Lỗi hệ thống'}`);
     }
 
     return data; // Returns log ID
 };
 
 export const refundCredits = async (userId: string, amount: number, description: string): Promise<void> => {
+    // STRICTLY USE RPC. REMOVED UNSAFE CLIENT-SIDE FALLBACK.
+    // Writing to the DB from client with (current + amount) is dangerous if 'current' is stale.
     const { error } = await supabase.rpc('refund_credits', {
         p_user_id: userId,
         p_amount: amount,
@@ -97,9 +90,7 @@ export const refundCredits = async (userId: string, amount: number, description:
 
     if (error) {
         console.error("refundCredits RPC error:", error.message || JSON.stringify(error));
-        // Manual fallback: update credits
-        const status = await getUserStatus(userId);
-        await supabase.from('profiles').update({ credits: status.credits + amount }).eq('id', userId);
+        // If RPC fails, we log it. We DO NOT try to fix it client-side to avoid resetting credits to wrong values.
     }
 };
 
@@ -147,8 +138,7 @@ export const createPendingTransaction = async (userId: string, plan: PricingPlan
         .maybeSingle();
 
     if (existingTx) {
-        // [UPDATE] Kiểm tra tiền tố để đảm bảo đồng bộ (OPZ)
-        // Nếu mã cũ là PAY... thì coi như không hợp lệ và tạo mới
+        // Kiểm tra tiền tố để đảm bảo đồng bộ (OPZ)
         const isCorrectPrefix = existingTx.transaction_code.startsWith('OPZ');
 
         // Nếu số tiền khớp hoàn toàn VÀ đúng tiền tố -> Tái sử dụng (Idempotency)
@@ -161,23 +151,21 @@ export const createPendingTransaction = async (userId: string, plan: PricingPlan
             };
         }
 
-        // Nếu số tiền KHÁC (do áp dụng/xóa voucher) HOẶC Tiền tố cũ (PAY...) -> HỦY cái cũ để tạo cái mới
-        console.log(`[Payment] Refreshing transaction (Amount changed or Old Prefix). Cancelling old tx ${existingTx.transaction_code}...`);
+        // Nếu số tiền KHÁC (do áp dụng/xóa voucher) -> HỦY cái cũ
         await supabase
             .from('transactions')
             .update({ status: 'cancelled' })
             .eq('id', existingTx.id);
     }
 
-    // 2. Dọn dẹp các giao dịch 'pending' khác của user (nếu họ nhảy qua nhảy lại giữa các gói)
-    // Chỉ giữ lại 1 giao dịch pending duy nhất tại một thời điểm
+    // 2. Dọn dẹp các giao dịch 'pending' khác
     await supabase
         .from('transactions')
         .update({ status: 'cancelled' })
         .eq('user_id', userId)
         .eq('status', 'pending');
 
-    // 3. Tạo giao dịch MỚI với Mã mới chuẩn OPZ...
+    // 3. Tạo giao dịch MỚI
     const transactionCode = `OPZ${Math.floor(100000 + Math.random() * 900000)}`;
     
     const { data, error } = await supabase
@@ -233,7 +221,6 @@ export const subscribeToTransaction = (transactionId: string, onPaid: () => void
 };
 
 export const checkVoucher = async (code: string): Promise<number> => {
-    // --- REAL DATABASE CHECK ---
     try {
         const { data, error } = await supabase
             .from('vouchers')
@@ -242,11 +229,9 @@ export const checkVoucher = async (code: string): Promise<number> => {
             .single();
 
         if (error) {
-            // Nếu lỗi là do bảng chưa tồn tại (thường gặp khi mới setup), ta throw lỗi rõ ràng
             if (error.code === '42P01') {
                 throw new Error("Hệ thống mã giảm giá đang bảo trì (Table missing). Vui lòng thử mã TEST10.");
             }
-            // Mã không tìm thấy
             if (error.code === 'PGRST116') {
                 throw new Error("Mã giảm giá không hợp lệ.");
             }
@@ -257,14 +242,12 @@ export const checkVoucher = async (code: string): Promise<number> => {
             throw new Error("Mã giảm giá đã hết hạn hoặc bị vô hiệu hóa.");
         }
         
-        // Check dates if applicable
         const now = new Date();
         if (data.start_date && new Date(data.start_date) > now) throw new Error("Mã chưa có hiệu lực.");
         if (data.end_date && new Date(data.end_date) < now) throw new Error("Mã đã hết hạn.");
 
         return data.discount_percent;
     } catch (e: any) {
-        // Fallback for hardcoded test codes if DB fails or empty
         const hardcoded: Record<string, number> = {
             'TEST10': 10,
             'OPZEN20': 20,
@@ -276,38 +259,24 @@ export const checkVoucher = async (code: string): Promise<number> => {
     }
 };
 
-// --- DEV TOOL: Simulate Webhook (Backend Logic) ---
 export const simulateSePayWebhook = async (transactionId: string): Promise<boolean> => {
     if (transactionId.startsWith('mock-tx-')) {
-        console.warn("Cannot simulate backend webhook on a mock transaction ID (DB record does not exist).");
+        console.warn("Cannot simulate backend webhook on a mock transaction ID.");
         return true;
     }
 
     try {
-        console.log(`[DevTool] Simulating webhook for ${transactionId}...`);
-        
-        // Gọi RPC (Stored Procedure) đã tạo trong Supabase để bypass RLS
         const { data, error } = await supabase.rpc('approve_transaction_test', {
             p_transaction_id: transactionId
         });
 
         if (error) {
-            console.error("[DevTool] RPC Error:", error.message || error);
-            // Throw error to be caught by UI
             throw new Error(error.message || "RPC Error");
         }
 
-        if (data === true) {
-            console.log("[DevTool] Webhook simulated successfully via RPC.");
-            return true;
-        } else {
-            console.warn("[DevTool] RPC returned false (Transaction not found or already completed).");
-            return false;
-        }
-
+        return data === true;
     } catch (e: any) {
         console.error("[DevTool] Failed to simulate webhook:", e);
-        // Nếu lỗi là do hàm RPC chưa tồn tại
         if (e.message?.includes('function') && e.message?.includes('does not exist')) {
             throw new Error("MISSING_RPC");
         }

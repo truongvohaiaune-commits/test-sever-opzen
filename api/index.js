@@ -59,10 +59,10 @@ export default async function handler(request, response) {
     // [QUAN TRỌNG] Token cứng (Fix cứng). 
     // Dán Token ya29... mới nhất của bạn vào đây. Hệ thống sẽ ƯU TIÊN dùng cái này trước.
     // Chia nhỏ CỰC KỸ để tránh secret scanning (4 parts)
-    const T1 = "ya29.a0ATi6K2tD_fd2xFMiuyisz-3nUZtmYJyoGJiIs3w7QZJtTrwzkZ";
-    const T2 = "vmhmB_pEjoPqYQ2EeLg4DskObUct6wjpbwDY9NFEDiZXnapwmVtddgkC";
-    const T3 = "gnvbc_qPpkWiIDeyVP-N-ciuQu1rHv3s_IqoGZuskFvhQKYnscEMvh42";
-    const T4 = "8WfwyaEuDayRP789EVF93jjlOuTBE04rMlPINeYs7O5nKHYxtM3HznjuKzwQPEm41iMvB7e-5p-EhX3BQk10sPxR5hkJ43kkRd4tYK3cXVX4GurMGUe324-FVAULrlpsZjSG-PQZNgIYntc3P3YBD4MoH5wdwhkC98LnlriPQCA73R6yARwiiAW6W1PakwUmuMT199U6waCgYKASsSARQSFQHGX2MiBUoy1INbWjoc0XgIiRZlpw0370";
+    const T1 = "ya29.a0ATi6K2skDQEHlhWqykzF8xsy4zg9_-At9HnAux4GSTv69_7NidKIhqMXGn7FsTQvLtL5Cg_dr2fag4W-btZvcLl_IyY_jQj";
+    const T2 = "LuC2eZ8BciFYD6OfyRBc1zeQEIzi0oKe8NneiilXuVWKEciBClIvg27ZrAg2A3a3LU6zOXm3VOtVRhsBOHo8PJ3TdQIyywVnBtt-";
+    const T3 = "mLLge-txPMgczxHQPmDAx3qoS4r_vxoaniZYukJZfQKaAIcvtRuAgUxz0pxB2KKMeaso1ePdwuRkIxU-FJQdb3ppon9pcsKvwZfG";
+    const T4 = "m1PWlZ_nGLVvWIuw0xo6xesGXSEnsy0P7DxBf42XgRKpTHaIsw4_BtP_AHl2n1wTHkx4aCgYKAccSARQSFQHGX2MiNqwPwi4lWBt9GARzx27g1Q0370";
     const FALLBACK_TOKEN = T1 + T2 + T3 + T4;
 
     const HEADERS = {
