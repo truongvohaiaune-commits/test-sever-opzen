@@ -85,7 +85,7 @@ const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate,
 
             <main className="flex-grow px-4 sm:px-10 py-16 max-w-[1200px] mx-auto w-full">
                 <div className="text-center mb-16">
-                    <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">Bảng Giá Đơn Giản, Minh Bạch</h1>
+                    <h1 className="text-3xl md:text-5xl font-bold text-white mb-4">BẢNG GIÁ GÓI SỬ DỤNG AI</h1>
                     <p className="text-lg text-gray-400 max-w-2xl mx-auto">
                         Chọn gói cước phù hợp với nhu cầu sáng tạo của bạn. Không phí ẩn, hủy bất cứ lúc nào.
                     </p>
@@ -175,7 +175,7 @@ const PublicPricing: React.FC<PublicPricingProps> = ({ onGoHome, onAuthNavigate,
                                             : 'bg-white text-black hover:bg-gray-200 hover:-translate-y-0.5'
                                     }`}
                                 >
-                                    {plan.highlight ? 'Bắt đầu ngay' : 'Chọn gói này'}
+                                    Chọn gói này
                                 </button>
                             </div>
                         );

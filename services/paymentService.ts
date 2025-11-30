@@ -23,7 +23,7 @@ export const getUserStatus = async (userId: string, email?: string): Promise<Use
                  }
             }
             
-            console.error("Error fetching user status:", error);
+            console.error("Error fetching user status:", error.message || error);
             return { credits: 0, subscriptionEnd: null, isExpired: false };
         }
 
@@ -51,7 +51,8 @@ export const deductCredits = async (userId: string, amount: number, description:
     });
 
     if (error) {
-        console.error("deductCredits error:", error);
+        // IMPROVED ERROR LOGGING
+        console.error("deductCredits RPC error:", error.message || JSON.stringify(error));
         
         // Fallback: Check balance and insert log manually (NOT ATOMIC)
         // This is a backup in case RPC is not set up on the DB yet.
@@ -67,7 +68,10 @@ export const deductCredits = async (userId: string, amount: number, description:
             .select('id')
             .single();
             
-        if (logError) throw new Error("Ghi nhật ký sử dụng thất bại.");
+        if (logError) {
+            console.error("Fallback insert usage_log error:", logError.message || JSON.stringify(logError));
+            throw new Error("Ghi nhật ký sử dụng thất bại.");
+        }
         
         const { error: updateError } = await supabase
             .from('profiles')
@@ -75,7 +79,7 @@ export const deductCredits = async (userId: string, amount: number, description:
             .eq('id', userId);
             
         if (updateError) {
-             console.error("Critical: Failed to update profile credits after logging usage.");
+             console.error("Critical: Failed to update profile credits after logging usage:", updateError.message || JSON.stringify(updateError));
         }
         
         return logData.id;
@@ -92,7 +96,7 @@ export const refundCredits = async (userId: string, amount: number, description:
     });
 
     if (error) {
-        console.error("refundCredits error:", error);
+        console.error("refundCredits RPC error:", error.message || JSON.stringify(error));
         // Manual fallback: update credits
         const status = await getUserStatus(userId);
         await supabase.from('profiles').update({ credits: status.credits + amount }).eq('id', userId);
@@ -110,7 +114,7 @@ export const getTransactionHistory = async (): Promise<Transaction[]> => {
         .order('created_at', { ascending: false });
 
     if (error) {
-        console.error("getTransactionHistory error:", error);
+        console.error("getTransactionHistory error:", error.message || error);
         return [];
     }
 
@@ -124,7 +128,7 @@ export const redeemGiftCode = async (userId: string, code: string): Promise<numb
     });
 
     if (error) {
-        throw new Error(error.message);
+        throw new Error(error.message || "Lỗi đổi mã quà tặng");
     }
 
     return data; // returns amount added
@@ -288,9 +292,9 @@ export const simulateSePayWebhook = async (transactionId: string): Promise<boole
         });
 
         if (error) {
-            console.error("[DevTool] RPC Error:", error);
+            console.error("[DevTool] RPC Error:", error.message || error);
             // Throw error to be caught by UI
-            throw new Error(error.message);
+            throw new Error(error.message || "RPC Error");
         }
 
         if (data === true) {

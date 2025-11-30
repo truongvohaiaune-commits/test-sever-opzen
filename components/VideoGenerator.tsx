@@ -67,7 +67,7 @@ interface VideoGeneratorProps {
 
 const VideoGenerator: React.FC<VideoGeneratorProps> = ({ state, onStateChange, userCredits = 0, onDeductCredits }) => {
     // --- MAINTENANCE MODE TOGGLE ---
-    const isMaintenanceMode = true;
+    const isMaintenanceMode = false;
 
     if (isMaintenanceMode) {
         return (
@@ -118,12 +118,16 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ state, onStateChange, u
     const cost = 5; 
 
     const handleGenerate = async () => {
+        console.log("[Video UI] Người dùng nhấn nút Tạo Video");
+        
         if (onDeductCredits && userCredits < cost) {
+             console.warn("[Video UI] Không đủ credits");
              onStateChange({ error: `Bạn không đủ credits. Cần ${cost} credits nhưng chỉ còn ${userCredits}. Vui lòng nạp thêm.` });
              return;
         }
 
         if (!prompt) {
+            console.warn("[Video UI] Prompt trống");
             onStateChange({ error: 'Vui lòng nhập một mô tả.' });
             return;
         }
@@ -140,12 +144,14 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ state, onStateChange, u
         try {
             // 1. Deduct Credits
             if (onDeductCredits) {
+                console.log("[Video UI] Đang trừ credits...");
                 logId = await onDeductCredits(cost, `Tạo video AI (${renderSource})`);
             }
 
             // 2. Create Job
             const { data: { user } } = await supabase.auth.getUser();
-            if (user && logId) { // Ensure logId exists before creating job
+            if (user && logId) { 
+                 console.log("[Video UI] Đang tạo Job trên Database...");
                  jobId = await jobService.createJob({
                     user_id: user.id,
                     tool_id: Tool.VideoGeneration,
@@ -153,6 +159,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ state, onStateChange, u
                     cost: cost,
                     usage_log_id: logId
                 });
+                console.log("[Video UI] Job ID:", jobId);
             }
 
             // If no job was created (e.g., DB error after payment), we must refund immediately
@@ -164,12 +171,15 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ state, onStateChange, u
 
             let url = "";
             if (renderSource === 'google') {
+                console.log("[Video UI] Gọi Gemini Service...");
                 url = await geminiService.generateVideo(prompt, startImage || undefined, jobId || undefined);
             } else {
-                // Gọi service mới hỗ trợ Polling
+                console.log("[Video UI] Gọi External Service (Vercel)...");
+                // Gọi service mới hỗ trợ Polling (Vercel Serverless)
                 url = await externalVideoService.generateVideoExternal(prompt, backendUrl, startImage || undefined);
             }
             
+            console.log("[Video UI] Nhận được URL kết quả:", url);
             onStateChange({ generatedVideoUrl: url });
 
             if (jobId) await jobService.updateJobStatus(jobId, 'completed', url);
@@ -182,7 +192,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ state, onStateChange, u
             });
 
         } catch (err: any) {
-            console.error("Generation Error:", err);
+            console.error("[Video UI] Lỗi tạo video:", err);
             let errorMessage = err.message || 'Đã xảy ra lỗi không mong muốn.';
             
             if (errorMessage.includes('Quá thời gian chờ') || errorMessage.includes('Timeout')) {
@@ -196,6 +206,7 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ state, onStateChange, u
             // Refund logic: Only refund if logId exists (money was actually taken)
             const { data: { user } } = await supabase.auth.getUser();
             if (user && logId) {
+                console.log("[Video UI] Đang hoàn tiền do lỗi...");
                 await refundCredits(user.id, cost, `Hoàn tiền: Lỗi khi tạo video (${errorMessage})`);
             }
 
@@ -230,14 +241,14 @@ const VideoGenerator: React.FC<VideoGeneratorProps> = ({ state, onStateChange, u
                                 onClick={() => setRenderSource('veo3_external')}
                                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${renderSource === 'veo3_external' ? 'bg-purple-600 text-white shadow' : 'bg-gray-200 dark:bg-gray-700 text-gray-500'}`}
                             >
-                                Veo 3 (Serverless Vercel)
+                                Veo 3 (Ultra High Quality)
                             </button>
                              <button 
                                 disabled
                                 className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-all bg-gray-200 dark:bg-gray-700 text-gray-400 opacity-50 cursor-not-allowed border border-gray-300 dark:border-gray-600`}
                                 title="Tính năng tạm thời bảo trì"
                             >
-                                Google Veo (Bảo trì)
+                                Google Veo (Standard)
                             </button>
                         </div>
                     </div>
