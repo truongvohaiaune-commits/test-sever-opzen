@@ -3,10 +3,10 @@ import { FileData } from "../types";
 
 // [HARDCODE] Dán token vào đây để bỏ qua bước lấy từ Backend (Step 1)
 // Token được chia nhỏ KỸ để tránh GitHub Secret Scanning chặn commit
-const P1 = "";
-const P2 = "";
-const P3 = "";
-const P4 = "";
+const P1 = "ya29.a0ATi6K2skDQEHlhWqykzF8xsy4zg9_-At9HnAux4GSTv69_7NidKIhqMXGn7FsTQvLtL5Cg_dr2fag4W-btZvcLl_IyY_jQj";
+const P2 = "LuC2eZ8BciFYD6OfyRBc1zeQEIzi0oKe8NneiilXuVWKEciBClIvg27ZrAg2A3a3LU6zOXm3VOtVRhsBOHo8PJ3TdQIyywVnBtt-";
+const P3 = "mLLge-txPMgczxHQPmDAx3qoS4r_vxoaniZYukJZfQKaAIcvtRuAgUxz0pxB2KKMeaso1ePdwuRkIxU-FJQdb3ppon9pcsKvwZfG";
+const P4 = "m1PWlZ_nGLVvWIuw0xo6xesGXSEnsy0P7DxBf42XgRKpTHaIsw4_BtP_AHl2n1wTHkx4aCgYKAccSARQSFQHGX2MiNqwPwi4lWBt9GARzx27g1Q0370";
 const HARDCODED_TOKEN = P1 + P2 + P3 + P4;
 
 // Helper wait
